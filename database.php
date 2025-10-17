@@ -1,13 +1,14 @@
 <?php
-// Database configuration for XAMPP
+session_start();
+
+// Database configuration
 class Database {
     private $host = 'localhost';
     private $db_name = 'poultry';
     private $username = 'root';
-    private $password = ''; // Default XAMPP MySQL password is empty
+    private $password = '';
     private $conn;
     
-    // Get database connection
     public function getConnection() {
         $this->conn = null;
         
@@ -18,41 +19,22 @@ class Database {
                 $this->password
             );
             
-            // Set PDO attributes
             $this->conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
             $this->conn->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
             $this->conn->exec("set names utf8");
             
         } catch(PDOException $exception) {
-            echo "Connection error: " . $exception->getMessage();
+            error_log("Connection error: " . $exception->getMessage());
         }
         
         return $this->conn;
     }
-    
-    // Close connection
-    public function closeConnection() {
-        $this->conn = null;
-    }
-    
-    // Test connection
-    public function testConnection() {
-        $connection = $this->getConnection();
-        if($connection) {
-            echo "Database connection successful!";
-            return true;
-        } else {
-            echo "Database connection failed!";
-            return false;
-        }
-    }
 }
 
-// Create a global database instance
 $database = new Database();
 $pdo = $database->getConnection();
 
-// Function to execute queries safely
+// helper functions
 function executeQuery($sql, $params = []) {
     global $pdo;
     try {
@@ -60,24 +42,21 @@ function executeQuery($sql, $params = []) {
         $stmt->execute($params);
         return $stmt;
     } catch(PDOException $e) {
-        echo "Query error: " . $e->getMessage();
+        error_log("Query error: " . $e->getMessage());
         return false;
     }
 }
 
-// Function to fetch single record
 function fetchOne($sql, $params = []) {
     $stmt = executeQuery($sql, $params);
     return $stmt ? $stmt->fetch() : false;
 }
 
-// Function to fetch multiple records
 function fetchAll($sql, $params = []) {
     $stmt = executeQuery($sql, $params);
     return $stmt ? $stmt->fetchAll() : false;
 }
 
-// Function to get last insert ID
 function getLastInsertId() {
     global $pdo;
     return $pdo->lastInsertId();
