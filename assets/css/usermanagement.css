@@ -1,0 +1,196 @@
+@import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css');
+
+body {
+    font-family: "Myanmar3", sans-serif;
+    background:var(--main-color);
+    margin: 0;
+    padding: 0;
+  }
+  :root{
+    --main-color:linear-gradient(135deg, #677ad4, #619cdb); 
+    /* linear-gradient(135deg, #31D492, #2A9689);  */
+    /* linear-gradient(135deg, #A3B3FF, #619cdb); */
+    --blue--color:#007bff;
+    --border--color:#d3d9e1;
+    --warn-color:#ff3b30;
+    --white-color:#ffff;
+    --text-color:#222;
+    --dark-blue:#193CB8;
+    --green-color:#28a745;
+    
+    }
+.welcome_container {
+    max-width: 1200px;
+    margin: 30px auto;
+    padding: 0 20px;
+}
+.welcome_container::before{
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M0,0 L100,0 L100,100 Z" fill="rgba(255,255,255,0.1)"/></svg>');
+    background-size: cover;
+    pointer-events: none;
+  }
+
+.welcome-section {
+    background: var(--white-color);
+    padding: 30px;
+    border-radius: 10px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    margin-bottom: 30px;
+    text-align: center;
+}
+
+.admin-section {
+    background: var(--white-color);
+    padding: 30px;
+    border-radius: 10px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+}
+
+.admin-section h2 {
+    color: var(--text-color);
+    margin-bottom: 20px;
+    border-bottom: 2px solid var(--blue--color);
+    padding-bottom: 10px;
+}
+
+.users-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+}
+
+.users-table th,
+.users-table td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border--color);
+}
+
+.users-table th {
+    background: var(--white-color);
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.users-table tr:hover {
+    background: #8ebeed;
+    cursor: pointer;
+}
+
+.user-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.status-active {
+    color: var(--green-color);
+    font-weight: 600;
+}
+
+.status-inactive {
+    color: var(--warn-color);
+    font-weight: 600;
+}
+
+.btn {
+    padding: 8px 15px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-block;
+    transition: all 0.3s;
+}
+
+.btn-primary {
+    background: var(--blue--color);
+    color: var(--white-color);
+}
+
+.btn-danger {
+    background: var(--warn-color);
+    color: var(--white-color);
+}
+
+.btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+}
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+}
+
+.modal-content {
+    background-color: var(--white-color);
+    margin: 10% auto;
+    padding: 30px;
+    border-radius: 10px;
+    width: 90%;
+    max-width: 400px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    position: relative;
+}
+
+.close {
+    color: #aaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+    position: absolute;
+    right: 15px;
+    top: 15px;
+    cursor: pointer;
+}
+
+.close:hover {
+    color: var(--warn-color);
+}
+
+.modal-actions {
+    margin-top: 20px;
+    text-align: center;
+}
+
+.btn-sm {
+    padding: 8px 15px;
+    font-size: 14px;
+}
+/* for edit password */
+#passwordForm .form-group {
+    margin-bottom: 15px;
+}
+
+#passwordForm label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 600;
+    color: var(--text-color);
+}
+
+#passwordForm input {
+    width: 100%;
+    padding: 10px;
+    border: 2px solid var(--border--color);
+    border-radius: 5px;
+    font-size: 16px;
+}
+
+#passwordForm input:focus {
+    outline: none;
+    border-color: var(--blue--color);
+}

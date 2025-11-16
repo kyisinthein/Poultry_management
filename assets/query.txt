@@ -179,3 +179,92 @@ COMMIT;
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
 /*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+
+
+CREATE TABLE sales_summary (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    date DATE NOT NULL,
+    
+    -- Sales Data
+    sold_count INT,
+    weight_per_chicken DECIMAL(10,2),
+    total_sold_count INT,
+    total_weight DECIMAL(12,2),
+    
+    -- Mortality Data
+    daily_weight DECIMAL(10,2),
+    dead_count INT,
+    mortality_rate DECIMAL(5,2),
+    cumulative_sold_count INT,
+    surplus_deficit INT,
+    
+    -- Weight Categories
+    weight_21to30 INT,
+    weight_31to36 INT,
+    weight_37to_end INT,
+    
+    -- Production Metrics
+    total_chicken_weight DECIMAL(12,2),
+    total_feed_consumption_rate DECIMAL(5,2),
+    total_feed_weight DECIMAL(12,2),
+    final_weight DECIMAL(10,2),
+    fcr DECIMAL(5,2),
+    
+    -- Additional Fields
+    comments TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+-- Add foreign key relationship
+ALTER TABLE `sales_summary` 
+ADD CONSTRAINT `fk_sales_pagination` 
+FOREIGN KEY (`page_number`) REFERENCES `pagination`(`page_number`);
+
+-- Create simple farms table
+CREATE TABLE farms (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    farm_no INT NOT NULL UNIQUE,
+    farm_username VARCHAR(100) NOT NULL UNIQUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Insert 30 farms with Burmese names
+INSERT INTO farms (farm_no, farm_username) VALUES
+(1, 'အောင်စိုးမင်း'),
+(2, 'မြတ်နိုး'),
+(3, 'စုပြည့်'),
+(4, 'ဝင်းမျိုး'),
+(5, 'သက်နှင်း'),
+(6, 'နိုင်းနိုင်း'),
+(7, 'ခိုင်စံ'),
+(8, 'ဇင်မင်း'),
+(9, 'မိုးသူ'),
+(10, 'ထွန်းအောင်'),
+(11, 'အိအိမော်'),
+(12, 'ကိုကို'),
+(13, 'သင်းသင်းခိုင်'),
+(14, 'မြင့်မြင့်ခင်'),
+(15, 'ဝင်းထော်'),
+(16, 'စန်းဝေ'),
+(17, 'ခင်စန်း'),
+(18, 'မြင့်အောင်'),
+(19, 'ဇော်လင်း'),
+(20, 'နေမင်း'),
+(21, 'သဇင်'),
+(22, 'မိုးဇက်'),
+(23, 'စည်သူ'),
+(24, 'ပြည့်ဖြိုး'),
+(25, 'ခင်မောင်'),
+(26, 'ဇင်ဇင်'),
+(27, 'မျိုးသူ'),
+(28, 'နိုင်းစံ'),
+(29, 'အောင်ကျော်'),
+(30, 'စန်းလွင်');
+
+-- Update sales_summary table to include farm_id
+ALTER TABLE sales_summary ADD COLUMN farm_id INT DEFAULT 1;
+ALTER TABLE sales_summary ADD FOREIGN KEY (farm_id) REFERENCES farms(id);
+
+-- Update pagination table to include farm_id
+ALTER TABLE pagination ADD COLUMN farm_id INT DEFAULT 1;
+ALTER TABLE pagination ADD FOREIGN KEY (farm_id) REFERENCES farms(id);

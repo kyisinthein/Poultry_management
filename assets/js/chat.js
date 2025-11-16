@@ -5,6 +5,11 @@ let activityInterval;
 let unreadCountInterval;
 let lastMessageCount = 0;
 let perUserUnreadCounts = {};
+let lastMessageIds = {}; // Track last message IDs per chat
+let isFirstLoad = true; // Track initial load
+let scrollButton = null;
+let isUserScrolling = false;
+let scrollCheckTimeout = null;
 
 document.addEventListener('DOMContentLoaded', function() {
     console.log('Chat system initialized');
@@ -18,6 +23,8 @@ function initializeChat() {
     // User selection
     document.querySelectorAll('.user-item').forEach(item => {
         item.addEventListener('click', function() {
+            const previousReceiver = currentReceiver;
+            
             document.querySelectorAll('.user-item').forEach(i => i.classList.remove('active'));
             this.classList.add('active');
             currentReceiver = this.dataset.userid;
@@ -25,8 +32,19 @@ function initializeChat() {
             
             // Mark messages as read when switching to a chat
             markMessagesAsRead();
+            
+            // Set first load flag when switching between different chats
+            if (previousReceiver !== currentReceiver) {
+                isFirstLoad = true;
+            }
+            
             loadMessages();
             updateAllUnreadCounts();
+            
+            // Hide scroll button when switching chats initially
+            setTimeout(() => {
+                checkScrollPosition();
+            }, 500);
         });
     });
 
@@ -47,6 +65,9 @@ function initializeChat() {
         e.preventDefault();
         sendMessage();
     });
+
+    // Initialize scroll button
+    initializeScrollButton();
 
     // Load initial data
     loadMessages();
@@ -83,7 +104,7 @@ function sendMessage() {
     // Show loading state
     const sendBtn = document.querySelector('.send-btn');
     const originalText = sendBtn.textContent;
-    sendBtn.textContent = 'Sending...';
+    sendBtn.textContent = 'ပေးပို့နေပါသည်...';
     sendBtn.disabled = true;
 
     fetch('send_message.php', {
@@ -98,6 +119,11 @@ function sendMessage() {
             messageInput.placeholder = 'Type your message...';
             loadMessages();
             updateActivity();
+            
+            // Auto scroll to bottom after sending message
+            setTimeout(() => {
+                scrollToBottom();
+            }, 100);
         } else {
             alert('Error sending message: ' + (data.error || 'Unknown error'));
         }
@@ -132,10 +158,17 @@ function loadMessages() {
             messages = [];
         }
         
-        // Check for new messages for notification
-        if (messages.length > lastMessageCount && lastMessageCount > 0) {
+        // Get the last message ID from current batch
+        const currentLastMessageId = messages.length > 0 ? messages[messages.length - 1].id : 0;
+        const previousLastMessageId = lastMessageIds[receiverId] || 0;
+        
+        // Check for new messages (only if not first load and not switching chats)
+        if (!isFirstLoad && currentLastMessageId > previousLastMessageId && previousLastMessageId > 0) {
             showNewMessageNotification();
         }
+        
+        // Store the current last message ID for this chat
+        lastMessageIds[receiverId] = currentLastMessageId;
         
         // Store the current scroll position and container height
         const oldScrollTop = container.scrollTop;
@@ -146,6 +179,8 @@ function loadMessages() {
         if (messages.length === 0) {
             container.innerHTML = '<div class="no-messages">No messages yet. Start the conversation!</div>';
             lastMessageCount = 0;
+            isFirstLoad = false;
+            checkScrollPosition(); // Check scroll position after loading
             return;
         }
         
@@ -184,18 +219,22 @@ function loadMessages() {
         if (wasAtBottom) {
             // User was at bottom, so scroll to bottom to see new messages
             container.scrollTop = newScrollHeight;
+            hideScrollButton(); // Hide button since we're at bottom
         } else if (newMessageCount > lastMessageCount && lastMessageCount > 0) {
             // New messages arrived but user is not at bottom
             // Calculate how much the content grew and maintain position
             const heightDifference = newScrollHeight - oldScrollHeight;
             container.scrollTop = oldScrollTop + heightDifference;
+            showScrollButton(); // Show button since user might want to scroll down
         } else {
             // Same number of messages or loading initial messages
             // Maintain the current scroll position
             container.scrollTop = oldScrollTop;
+            checkScrollPosition(); // Check if we need to show the button
         }
         
         lastMessageCount = newMessageCount;
+        isFirstLoad = false;
         
     })
     .catch(error => {
@@ -204,25 +243,87 @@ function loadMessages() {
         if (container.innerHTML === '') {
             container.innerHTML = '<div class="no-messages">No messages yet. Start the conversation!</div>';
         }
+        isFirstLoad = false;
+        checkScrollPosition();
     });
 }
 
-// Helper function to check if user is scrolled to bottom
+
+
+function initializeScrollButton() {
+    scrollButton = document.getElementById('scrollToBottom');
+    const messagesContainer = document.getElementById('messagesContainer');
+    
+    if (!scrollButton || !messagesContainer) return;
+    
+    // Click event for scroll button
+    scrollButton.addEventListener('click', scrollToBottom);
+    
+    // Scroll event listener to show/hide button
+    messagesContainer.addEventListener('scroll', handleScroll);
+    
+    // Initial check
+    checkScrollPosition();
+}
+
+// Scroll to bottom function
+function scrollToBottom() {
+    const container = document.getElementById('messagesContainer');
+    if (container) {
+        container.scrollTop = container.scrollHeight;
+        hideScrollButton();
+    }
+}
+
+// Handle scroll events
+function handleScroll() {
+    if (scrollCheckTimeout) {
+        clearTimeout(scrollCheckTimeout);
+    }
+    
+    scrollCheckTimeout = setTimeout(() => {
+        checkScrollPosition();
+    }, 100);
+}
+
+// Check if scroll button should be visible
+function checkScrollPosition() {
+    const container = document.getElementById('messagesContainer');
+    if (!container || !scrollButton) return;
+    
+    const isBottom = isScrolledToBottom(container);
+    
+    if (isBottom) {
+        hideScrollButton();
+    } else {
+        showScrollButton();
+    }
+}
+
+// Show scroll button
+function showScrollButton() {
+    if (scrollButton) {
+        scrollButton.style.display = 'flex';
+        setTimeout(() => {
+            scrollButton.classList.remove('hidden');
+        }, 10);
+    }
+}
+
+// Hide scroll button
+function hideScrollButton() {
+    if (scrollButton) {
+        scrollButton.classList.add('hidden');
+        setTimeout(() => {
+            scrollButton.style.display = 'none';
+        }, 300);
+    }
+}
+
+// Enhanced scroll to bottom check with threshold
 function isScrolledToBottom(container) {
     const threshold = 100; // pixels from bottom to consider "at bottom"
     return container.scrollTop + container.clientHeight >= container.scrollHeight - threshold;
-}
-
-function updateAllUnreadCounts() {
-    fetch('get_unread_count_per_user.php')
-    .then(response => response.json())
-    .then(data => {
-        updatePerUserUnreadCounts(data);
-        updateTotalUnreadCount(data);
-    })
-    .catch(error => {
-        console.error('Error getting unread counts:', error);
-    });
 }
 
 function updatePerUserUnreadCounts(data) {
@@ -289,10 +390,10 @@ function updateTotalUnreadCount(data) {
     if (totalUnread > 0) {
         headerBadge.textContent = totalUnread > 99 ? '99+' : totalUnread;
         headerBadge.style.display = 'flex';
-        document.title = `(${totalUnread}) Chat System`;
+        document.title = `(${totalUnread}) chat_poultrymanagement`;
     } else {
         headerBadge.style.display = 'none';
-        document.title = 'Chat System';
+        document.title = 'chat_poultrymanagement';
     }
 }
 
@@ -374,6 +475,8 @@ function markMessagesAsRead() {
     });
 }
 
+let previousUnreadCount = 0;
+
 function showNewMessageNotification() {
     let notification = document.getElementById('newMessageNotification');
     if (!notification) {
@@ -385,6 +488,8 @@ function showNewMessageNotification() {
     }
     
     notification.style.display = 'block';
+    
+    // Only play sound if user is not currently viewing the chat where message arrived
     playNotificationSound();
     
     setTimeout(() => {
@@ -392,10 +497,50 @@ function showNewMessageNotification() {
     }, 3000);
 }
 
+// Update the unread count function to play sound when new messages arrive
+function updateAllUnreadCounts() {
+    fetch('get_unread_count_per_user.php')
+    .then(response => response.json())
+    .then(data => {
+        const currentTotalUnread = data.group_unread + (data.users ? data.users.reduce((sum, user) => sum + user.unread_count, 0) : 0);
+        
+        // Play sound only when unread count increases
+        if (currentTotalUnread > previousUnreadCount && previousUnreadCount > 0) {
+            playNotificationSound();
+        }
+        
+        previousUnreadCount = currentTotalUnread;
+        
+        updatePerUserUnreadCounts(data);
+        updateTotalUnreadCount(data);
+    })
+    .catch(error => {
+        console.error('Error getting unread counts:', error);
+    });
+}
+
 function playNotificationSound() {
-    // To add a notification sound file
-    // const audio = new Audio('notification.mp3');
-    // audio.play().catch(e => console.log('Audio play failed:', e));
+    try {
+        const audio = document.getElementById('notificationSound');
+        if (audio) {
+            // Reset audio to beginning in case it's still playing
+            audio.currentTime = 0;
+            
+            // Play the sound
+            audio.play().catch(error => {
+                console.log('Audio play failed:', error);
+                // Fallback: create new audio element
+                const fallbackAudio = new Audio('./assets/sounds/notification.wav');
+                fallbackAudio.play().catch(e => console.log('Fallback audio also failed:', e));
+            });
+        } else {
+            // Fallback if element not found
+            const fallbackAudio = new Audio('./assets/sounds/notification.wav');
+            fallbackAudio.play().catch(e => console.log('Audio play failed:', e));
+        }
+    } catch (error) {
+        console.log('Notification sound error:', error);
+    }
 }
 
 function renderFileMessage(message) {

@@ -1,0 +1,359 @@
+<?php
+include 'database.php';
+
+// Handle add new table
+if (isset($_POST['add_new_table'])) {
+    try {
+        // Get current max page number from pagination table
+        $max_page_sql = "SELECT MAX(page_number) as max_page FROM pagination";
+        $max_page_result = fetchOne($max_page_sql);
+        $new_page = ($max_page_result['max_page'] ?: 0) + 1;
+        
+        // Insert new pagination record for ALL page types
+        $page_types = ['summary', 'food', 'sales', 'medicine', 'grand-total'];
+        foreach ($page_types as $type) {
+            $check_sql = "SELECT id FROM pagination WHERE page_type = ? AND page_number = ?";
+            $check_result = fetchOne($check_sql, [$type, $new_page]);
+            
+            if (!$check_result) {
+                $insert_sql = "INSERT INTO pagination (page_number, page_type) VALUES (?, ?)";
+                executeQuery($insert_sql, [$new_page, $type]);
+                
+                // Log the creation for debugging
+                error_log("Created page $new_page for type $type");
+            }
+        }
+        
+        $_SESSION['success'] = "ဇယားအသစ်ထပ်ယူပြီးပါပြီ။ စာမျက်နှာအသစ်: " . $new_page . " ကို ဖိုင်အားလုံးအတွက်ဖန်တီးပြီးပါပြီ။";
+        header("Location: sell.php?page=" . $new_page);
+        exit();
+        
+    } catch (PDOException $e) {
+        $_SESSION['error'] = "Error creating new table: " . $e->getMessage();
+        header("Location: sell.php");
+        exit();
+    }
+}
+
+// Handle add new row - AUTO SET page_number
+if (isset($_POST['add_new_row'])) {
+    try {
+        $current_page = $_POST['page'] ?? 1;
+        
+        // Insert a new empty row with the current page number
+        $insert_sql = "INSERT INTO sales_summary (date, page_number, created_at) VALUES (CURDATE(), ?, NOW())";
+        executeQuery($insert_sql, [$current_page]);
+        
+        $_SESSION['success'] = "rowအသစ်ထပ်ယူပြီးပါပြီ။ (စာမျက်နှာ: $current_page)";
+        header("Location: sell.php?page=" . $current_page);
+        exit();
+        
+    } catch (PDOException $e) {
+        $_SESSION['error'] = "Error adding new row: " . $e->getMessage();
+        header("Location: sell.php?page=" . ($_POST['page'] ?? 1));
+        exit();
+    }
+}
+
+// Get current page from URL or default to 1
+$current_page = isset($_GET['page']) ? intval($_GET['page']) : 1;
+
+// Validate that the page exists in pagination table
+try {
+    $page_check_sql = "SELECT id FROM pagination WHERE page_type = 'sales' AND page_number = ?";
+    $page_exists = fetchOne($page_check_sql, [$current_page]);
+    
+    if (!$page_exists) {
+        // If page doesn't exist, redirect to page 1
+        $_SESSION['error'] = "စာမျက်နှာ $current_page မတွေ့ပါ။ စာမျက်နှာ ၁ သို့ပြန်သွားပါမည်။";
+        header("Location: sell.php?page=1");
+        exit();
+    }
+    
+    // Get sales data for current page
+    $sales_sql = "SELECT * FROM sales_summary WHERE page_number = ? ORDER BY date DESC, id DESC";
+    $sales_data = fetchAll($sales_sql, [$current_page]);
+    
+    // Get all available pages for pagination
+    $pages_sql = "SELECT DISTINCT page_number FROM pagination WHERE page_type = 'sales' ORDER BY page_number";
+    $pages_result = fetchAll($pages_sql);
+    $all_pages = array_column($pages_result, 'page_number');
+    
+    // Debug: Show available pages
+    error_log("Available pages for sales: " . implode(', ', $all_pages));
+    
+} catch (PDOException $e) {
+    $sales_data = [];
+    $all_pages = [1];
+    $_SESSION['error'] = "Error loading data: " . $e->getMessage();
+}
+
+// Get header data for current page (chicken_type, initial_count, current_count)
+$header_sql = "SELECT chicken_type, initial_count, current_count FROM sales_summary WHERE page_number = ? ORDER BY id DESC LIMIT 1";
+$header_data = fetchOne($header_sql, [$current_page]) ?? [
+    'chicken_type' => 'ကြက်အမျိုးအစား CP',
+    'initial_count' => 4080,
+    'current_count' => 3880
+];
+?>
+<!DOCTYPE html>
+<html lang="my">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>အရောင်းစာရင်းချုပ် - စာမျက်နှာ <?php echo $current_page; ?></title>
+  <link rel="stylesheet" href="./assets/css/sell.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <style>
+    .page-indicator {
+      background: #007bff;
+      color: white;
+      padding: 5px 10px;
+      border-radius: 4px;
+      font-weight: bold;
+      margin-left: 10px;
+    }
+    .available-pages {
+      margin: 10px 0;
+      padding: 10px;
+      background: #f8f9fa;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="sell_container">
+    <!-- Include Sidebar -->
+    <?php include 'sidebar.php'; ?>
+
+    <!-- Main Content -->
+    <div class="main-content">
+      <div class="content-header">
+        <h1>
+          အရောင်းစာရင်းချုပ် 
+          <span class="page-indicator">စာမျက်နှာ <?php echo $current_page; ?></span>
+        </h1>
+        
+        <!-- Show available pages for debugging -->
+        <div class="available-pages">
+          <strong>ရနိုင်သောစာမျက်နှာများ:</strong> 
+          <?php echo implode(', ', $all_pages); ?>
+        </div>
+        
+        <!-- Success/Error Messages -->
+        <?php if (isset($_SESSION['success'])): ?>
+            <div class="alert alert-success"><?php echo $_SESSION['success']; unset($_SESSION['success']); ?></div>
+        <?php endif; ?>
+        <?php if (isset($_SESSION['error'])): ?>
+            <div class="alert alert-error"><?php echo $_SESSION['error']; unset($_SESSION['error']); ?></div>
+        <?php endif; ?>
+        
+        <div class="header-actions">
+          <form method="POST" style="display: inline;">
+            <input type="hidden" name="page" value="<?php echo $current_page; ?>">
+            <button type="submit" name="add_new_row" class="btn btn-primary">
+              <i class="fas fa-plus"></i>
+              rowအသစ်ထပ်ယူရန် (စာမျက်နှာ <?php echo $current_page; ?>)
+            </button>
+          </form>
+          
+          <form method="POST" style="display: inline;">
+            <button type="submit" name="add_new_table" class="btn btn-primary">
+              <i class="fas fa-plus"></i>
+              ဇယားအသစ်ထပ်ယူရန် (ဖိုင်အားလုံးအတွက်)
+            </button>
+          </form>
+          
+          <button class="btn btn-secondary" id="saveAllData">
+            <i class="fas fa-save"></i>
+            Save-all (စာမျက်နှာ <?php echo $current_page; ?>)
+          </button>
+          <button class="btn btn-danger" id="deleteAllData">
+            <i class="fas fa-trash"></i>
+            Delete-all (စာမျက်နှာ <?php echo $current_page; ?>)
+          </button>
+        </div>
+      </div>
+
+      <!-- Search and Filter Section -->
+      <div class="search-section">
+        <div class="search-container">
+          <div class="search-group">
+            <label for="startDate">စတင်ရက်စွဲ</label>
+            <input type="date" id="startDate" class="date-input" value="<?php echo date('Y-m-d', strtotime('-30 days')); ?>">
+          </div>
+          <div class="search-group">
+            <label for="endDate">ပြီးဆုံးရက်စွဲ</label>
+            <input type="date" id="endDate" class="date-input" value="<?php echo date('Y-m-d'); ?>">
+          </div>
+          <button class="btn btn-search" id="searchBtn">
+            <i class="fas fa-search"></i>
+            ရှာဖွေရန်
+          </button>
+          <button class="btn btn-clear" id="clearBtn">
+            <i class="fas fa-redo"></i>
+            ရှင်းလင်းရန်
+          </button>
+        </div>
+      </div>
+
+      <!-- Table Structure -->
+      <div class="table-container">
+        <form id="salesForm" method="POST" action="update_sales.php">
+          <input type="hidden" name="page" value="<?php echo $current_page; ?>">
+          <input type="hidden" name="action" value="bulk_update">
+          
+          <table>
+            <thead>
+              <tr><th colspan="20">အရောင်းစာရင်းချုပ် - စာမျက်နှာ <?php echo $current_page; ?></th></tr>
+              <tr>
+                <th colspan="2">
+                  <input type="text" class="editable-header" name="chicken_type" value="<?php echo htmlspecialchars($header_data['chicken_type']); ?>" data-field="chicken_type">
+                </th>
+                <th colspan="2">စာရင်းရှိ</th>
+                <th colspan="3">
+                  <input type="number" class="editable-header" name="initial_count" value="<?php echo $header_data['initial_count']; ?>" data-field="initial_count">
+                </th>
+                <th colspan="6">အသေ</th>
+                <th>စုစုပေါင်းရောင်းကောင်</th>
+                <th></th>
+                <th>
+                  <input type="number" class="editable-header" name="current_count" value="<?php echo $header_data['current_count']; ?>" data-field="current_count">
+                </th>
+                <th></th>
+                <th></th>
+                <th></th>
+                <th></th>
+              </tr>
+              <tr>
+                <th>ရက်စွဲ</th>
+                <th>ရောင်းကောင်</th>
+                <th>အလေးချိန်</th>
+                <th>စုစုပေါင်းရောင်းကောင်</th>
+                <th>စုစုပေါင်းအလေးချိန်</th>
+                <th>အလေးချိန်</th>
+                <th>အသေပေါင်း</th>
+                <th>အသေရာခိုင်နှုန်း</th>
+                <th>စုစုပေါင်းရောင်းကောင်</th>
+                <th>အပို/အလို</th>
+                <th>21to30</th>
+                <th>31to36</th>
+                <th>37toend</th>
+                <th>ကြက်သားအလေးချိန်စုစုပေါင်း</th>
+                <th>စုစုပေါင်းအစာစားနှုန်း</th>
+                <th>ကြက်စာအလေးချိန်စုစုပေါင်း</th>
+                <th>အလေးချိန်</th>
+                <th>FCR</th>
+                <th>ပြုပြင်ရန်</th>
+                <th>မှတ်ချက်ပေးရန်</th>
+              </tr>
+            </thead>
+            <tbody id="salesTableBody">
+              <?php if (count($sales_data) > 0): ?>
+                <?php foreach ($sales_data as $row): ?>
+                  <tr data-id="<?php echo $row['id']; ?>">
+                    <td><input type="date" name="date[<?php echo $row['id']; ?>]" value="<?php echo $row['date']; ?>"></td>
+                    <td><input type="number" name="sold_count[<?php echo $row['id']; ?>]" value="<?php echo $row['sold_count'] ?? ''; ?>"></td>
+                    <td><input type="number" step="0.01" name="weight_per_chicken[<?php echo $row['id']; ?>]" value="<?php echo $row['weight_per_chicken'] ?? ''; ?>"></td>
+                    <td><input type="number" name="total_sold_count[<?php echo $row['id']; ?>]" value="<?php echo $row['total_sold_count'] ?? ''; ?>"></td>
+                    <td><input type="number" step="0.01" name="total_weight[<?php echo $row['id']; ?>]" value="<?php echo $row['total_weight'] ?? ''; ?>"></td>
+                    <td><input type="number" step="0.01" name="daily_weight[<?php echo $row['id']; ?>]" value="<?php echo $row['daily_weight'] ?? ''; ?>"></td>
+                    <td><input type="number" name="dead_count[<?php echo $row['id']; ?>]" value="<?php echo $row['dead_count'] ?? ''; ?>"></td>
+                    <td><input type="number" step="0.01" name="mortality_rate[<?php echo $row['id']; ?>]" value="<?php echo $row['mortality_rate'] ?? ''; ?>"></td>
+                    <td><input type="number" name="cumulative_sold_count[<?php echo $row['id']; ?>]" value="<?php echo $row['cumulative_sold_count'] ?? ''; ?>"></td>
+                    <td><input type="number" name="surplus_deficit[<?php echo $row['id']; ?>]" value="<?php echo $row['surplus_deficit'] ?? ''; ?>"></td>
+                    <td><input type="number" name="weight_21to30[<?php echo $row['id']; ?>]" value="<?php echo $row['weight_21to30'] ?? ''; ?>"></td>
+                    <td><input type="number" name="weight_31to36[<?php echo $row['id']; ?>]" value="<?php echo $row['weight_31to36'] ?? ''; ?>"></td>
+                    <td><input type="number" name="weight_37to_end[<?php echo $row['id']; ?>]" value="<?php echo $row['weight_37to_end'] ?? ''; ?>"></td>
+                    <td><input type="number" step="0.01" name="total_chicken_weight[<?php echo $row['id']; ?>]" value="<?php echo $row['total_chicken_weight'] ?? ''; ?>"></td>
+                    <td><input type="number" step="0.01" name="total_feed_consumption_rate[<?php echo $row['id']; ?>]" value="<?php echo $row['total_feed_consumption_rate'] ?? ''; ?>"></td>
+                    <td><input type="number" step="0.01" name="total_feed_weight[<?php echo $row['id']; ?>]" value="<?php echo $row['total_feed_weight'] ?? ''; ?>"></td>
+                    <td><input type="number" step="0.01" name="final_weight[<?php echo $row['id']; ?>]" value="<?php echo $row['final_weight'] ?? ''; ?>"></td>
+                    <td><input type="number" step="0.01" name="fcr[<?php echo $row['id']; ?>]" value="<?php echo $row['fcr'] ?? ''; ?>"></td>
+                    <td>
+                      <button type="button" class="btn-edit" onclick="updateRow(<?php echo $row['id']; ?>)">ပြုပြင်</button>
+                      <button type="button" class="btn-delete" onclick="deleteRow(<?php echo $row['id']; ?>)">ဖျက်ရန်</button>
+                    </td>
+                    <td><input type="text" name="comments[<?php echo $row['id']; ?>]" value="<?php echo htmlspecialchars($row['comments'] ?? ''); ?>"></td>
+                  </tr>
+                <?php endforeach; ?>
+              <?php else: ?>
+                <tr>
+                  <td colspan="20" style="text-align: center; padding: 20px;">
+                    စာမျက်နှာ <?php echo $current_page; ?> တွင် ဒေတာမရှိပါ။ "rowအသစ်ထပ်ယူရန်" ကိုနှိပ်ပြီး အသစ်ထည့်ပါ။
+                  </td>
+                </tr>
+              <?php endif; ?>
+            </tbody>
+          </table>
+        </form>
+      </div>
+  <?php
+$current_data = $sales_data;?>
+      <!-- Include Pagination -->
+      <?php include 'pagination.php'; ?>
+    </div>
+  </div>
+  <script>
+    // Simple JavaScript for pagination and search functionality
+    document.addEventListener('DOMContentLoaded', function() {
+      // Search functionality
+      const searchBtn = document.querySelector('.btn-search');
+      const clearBtn = document.querySelector('.btn-clear');
+      const startDate = document.getElementById('startDate');
+      const endDate = document.getElementById('endDate');
+
+      searchBtn.addEventListener('click', function() {
+        const start = startDate.value;
+        const end = endDate.value;
+        
+        if (start && end) {
+          alert(`ရက်စွဲအညီရှာဖွေမည်: ${start} မှ ${end} အထိ`);
+          // Here you would typically make an AJAX call to filter data
+        } else {
+          alert('ကျေးဇူးပြု၍ ရက်စွဲနှစ်ခုလုံးထည့်ပါ');
+        }
+      });
+
+      clearBtn.addEventListener('click', function() {
+        startDate.value = '';
+        endDate.value = '';
+        // Reset table to show all data
+        alert('ရှာဖွေမှုရှင်းလင်းပြီး');
+      });
+
+      // Pagination functionality
+      const pageBtns = document.querySelectorAll('.page-btn');
+      pageBtns.forEach(btn => {
+        btn.addEventListener('click', function() {
+          if (this.classList.contains('active')) return;
+          
+          // Remove active class from all buttons
+          pageBtns.forEach(b => b.classList.remove('active'));
+          
+          // Add active class to clicked button if it's a number button
+          if (!this.classList.contains('first') && 
+              !this.classList.contains('prev') && 
+              !this.classList.contains('next') && 
+              !this.classList.contains('last')) {
+            this.classList.add('active');
+          }
+          
+          // Here you would typically load the new page data via AJAX
+          console.log('Page changed');
+        });
+      });
+
+      // Page size change
+      const pageSelect = document.querySelector('.page-select');
+      pageSelect.addEventListener('change', function() {
+        const pageSize = this.value;
+        alert(`စာမျက်နှာအရွယ်အစားပြောင်းမည်: ${pageSize} ခုပြရန်`);
+        // Here you would typically reload data with new page size
+      });
+    });
+  </script>
+<script src="./assets/js/sales_manager.js"></script>
+</body>
+</html>
