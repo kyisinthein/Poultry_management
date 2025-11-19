@@ -38,6 +38,7 @@ $current_page_number = $_GET['page'] ?? 1;
 
 // Get current file name for navigation highlighting
 $current_file = basename($_SERVER['PHP_SELF']);
+$link_prefix = (strpos($_SERVER['PHP_SELF'], '/Feed/') !== false) ? '../' : '';
 ?>
 
 <!-- sidebar.php -->
@@ -53,41 +54,41 @@ $current_file = basename($_SERVER['PHP_SELF']);
   </div>
 
   <nav class="sidebar-nav">
-  <a href="./dashboard.php" class="nav-item">
+  <a href="<?php echo $link_prefix; ?>dashboard.php" class="nav-item">
       <i class="fas fa-home"></i>
       <span>ပင်မစာမျက်နှာ</span>
     </a>
-    <a href="summary.php?farm_id=<?php echo $current_farm_id; ?>&page=<?php echo $current_page_number; ?>" class="nav-item <?php echo $current_file == 'summary.php' ? 'active' : ''; ?>" data-page="summary">
+    <a href="<?php echo $link_prefix; ?>summary.php?farm_id=<?php echo $current_farm_id; ?>&page=<?php echo $current_page_number; ?>" class="nav-item <?php echo $current_file == 'summary.php' ? 'active' : ''; ?>" data-page="summary">
       <i class="fas fa-chart-bar"></i>
       <span><?php echo htmlspecialchars($current_farm['farm_username']?? 'အောင်စိုးမင်း'); ?></span>
     </a>
-    <a href="food.php?farm_id=<?php echo $current_farm_id; ?>&page=<?php echo $current_page_number; ?>" class="nav-item <?php echo $current_file == 'food.php' ? 'active' : ''; ?>" data-page="food">
+    <a href="<?php echo $link_prefix; ?>Feed/feed.php?farm_id=<?php echo $current_farm_id; ?>&page=<?php echo $current_page_number; ?>" class="nav-item <?php echo $current_file == 'feed.php' ? 'active' : ''; ?>" data-page="food">
       <i class="fas fa-utensils"></i>
       <span>အစာစာရင်းချုပ်</span>
     </a>
-    <a href="sell.php?farm_id=<?php echo $current_farm_id; ?>&page=<?php echo $current_page_number; ?>" class="nav-item <?php echo $current_file == 'sell.php' ? 'active' : ''; ?>" data-page="sales">
+    <a href="<?php echo $link_prefix; ?>sell.php?farm_id=<?php echo $current_farm_id; ?>&page=<?php echo $current_page_number; ?>" class="nav-item <?php echo $current_file == 'sell.php' ? 'active' : ''; ?>" data-page="sales">
       <i class="fas fa-list-alt"></i>
       <span>အရောင်းစာရင်းချုပ်</span>
     </a>
-    <a href="medicine.php?farm_id=<?php echo $current_farm_id; ?>&page=<?php echo $current_page_number; ?>" class="nav-item <?php echo $current_file == 'medicine.php' ? 'active' : ''; ?>" data-page="medicine">
+    <a href="<?php echo $link_prefix; ?>medicine.php?farm_id=<?php echo $current_farm_id; ?>&page=<?php echo $current_page_number; ?>" class="nav-item <?php echo $current_file == 'medicine.php' ? 'active' : ''; ?>" data-page="medicine">
       <i class="fas fa-plus"></i>
       <span>ဆေးစာရင်းချုပ်</span>
     </a>
-    <a href="grand-total.php?farm_id=<?php echo $current_farm_id; ?>&page=<?php echo $current_page_number; ?>" class="nav-item <?php echo $current_file == 'grand-total.php' ? 'active' : ''; ?>" data-page="grand-total">
+    <a href="<?php echo $link_prefix; ?>grand-total.php?farm_id=<?php echo $current_farm_id; ?>&page=<?php echo $current_page_number; ?>" class="nav-item <?php echo $current_file == 'grand-total.php' ? 'active' : ''; ?>" data-page="grand-total">
       <i class="fas fa-calculator"></i>
       <span>Grand Total</span>
     </a>
     
     <!-- User Management (Only for Admin) -->
     <?php if ($user['role'] === 'admin'): ?>
-    <a href="usermanagement.php" class="nav-item <?php echo $current_file == 'user_management.php' ? 'active' : ''; ?>" data-page="users">
+    <a href="<?php echo $link_prefix; ?>usermanagement.php" class="nav-item <?php echo $current_file == 'user_management.php' ? 'active' : ''; ?>" data-page="users">
       <i class="fas fa-users"></i>
       <span>အသုံးပြုသူ စီမံခန့်ခွဲမှု</span>
     </a>
     <?php endif; ?>
     
     <!-- Logout -->
-    <a href="logout.php" class="nav-item logout-btn">
+    <a href="<?php echo $link_prefix; ?>logout.php" class="nav-item logout-btn">
       <i class="fas fa-sign-out-alt"></i>
       <span>ထွက်ရန်</span>
     </a>

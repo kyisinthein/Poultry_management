@@ -2,10 +2,10 @@
 -- version 5.2.1
 -- https://www.phpmyadmin.net/
 --
--- Host: 127.0.0.1
--- Generation Time: Nov 16, 2025 at 04:41 PM
--- Server version: 10.4.25-MariaDB
--- PHP Version: 8.1.10
+-- Host: localhost
+-- Generation Time: Nov 19, 2025 at 11:38 AM
+-- Server version: 10.4.28-MariaDB
+-- PHP Version: 8.2.4
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
@@ -32,7 +32,7 @@ CREATE TABLE `farms` (
   `farm_no` int(11) NOT NULL,
   `farm_username` varchar(100) NOT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `farms`
@@ -73,31 +73,36 @@ INSERT INTO `farms` (`id`, `farm_no`, `farm_username`, `created_at`) VALUES
 -- --------------------------------------------------------
 
 --
--- Table structure for table `food_summary`
+-- Table structure for table `feed_summary`
 --
 
-CREATE TABLE `food_summary` (
+CREATE TABLE `feed_summary` (
   `id` int(11) NOT NULL,
   `date` date NOT NULL,
-  `food_type` varchar(100) DEFAULT NULL,
-  `food_amount` decimal(10,2) DEFAULT NULL,
-  `food_price` decimal(10,2) DEFAULT NULL,
-  `total_cost` decimal(12,2) DEFAULT NULL,
-  `remaining_food` decimal(10,2) DEFAULT NULL,
-  `consumption_rate` decimal(5,2) DEFAULT NULL,
-  `comments` text DEFAULT NULL,
+  `feed_category` varchar(120) DEFAULT NULL,
+  `feed_name` varchar(120) DEFAULT NULL,
+  `quantity` decimal(10,2) DEFAULT 0.00,
+  `unit_price` decimal(12,2) DEFAULT 0.00,
+  `total_cost` decimal(14,2) DEFAULT 0.00,
   `page_number` int(11) NOT NULL DEFAULT 1,
+  `farm_id` int(11) NOT NULL DEFAULT 1,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `farm_id` int(11) DEFAULT 1
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `comments` text DEFAULT NULL,
+  `has_comment` tinyint(1) DEFAULT 0,
+  `comment_read` tinyint(1) DEFAULT 0,
+  `comment_author_id` int(11) DEFAULT NULL,
+  `comment_created_at` datetime DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
--- Dumping data for table `food_summary`
+-- Dumping data for table `feed_summary`
 --
 
-INSERT INTO `food_summary` (`id`, `date`, `food_type`, `food_amount`, `food_price`, `total_cost`, `remaining_food`, `consumption_rate`, `comments`, `page_number`, `created_at`, `updated_at`, `farm_id`) VALUES
-(1, '2025-11-05', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, '2025-11-04 22:48:47', '2025-11-04 22:48:47', 1);
+INSERT INTO `feed_summary` (`id`, `date`, `feed_category`, `feed_name`, `quantity`, `unit_price`, `total_cost`, `page_number`, `farm_id`, `created_at`, `updated_at`, `comments`, `has_comment`, `comment_read`, `comment_author_id`, `comment_created_at`) VALUES
+(3, '2025-11-19', 'အငယ်', 'New hope 500', 5.00, 140000.00, 700000.00, 1, 1, '2025-11-19 07:05:38', '2025-11-19 10:19:04', 'Hello', 1, 1, 1, '2025-11-19 15:22:39'),
+(4, '2025-10-19', 'အငယ်', 'CP 910sp', 5.00, 139400.00, 697000.00, 1, 1, '2025-11-19 10:26:34', '2025-11-19 10:32:13', NULL, 0, 0, NULL, NULL),
+(5, '2025-11-19', 'အငယ်', 'New hope 500', 10.00, 140000.00, 1400000.00, 1, 1, '2025-11-19 10:33:50', '2025-11-19 10:33:50', NULL, 0, 0, NULL, NULL);
 
 -- --------------------------------------------------------
 
@@ -119,7 +124,7 @@ CREATE TABLE `history_logs` (
   `ip_address` varchar(45) DEFAULT NULL,
   `user_agent` text DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `history_logs`
@@ -129,7 +134,9 @@ INSERT INTO `history_logs` (`id`, `user_id`, `farm_id`, `page_number`, `action_t
 (24, 1, 5, 47, 'INSERT', 'pagination', 47, NULL, NULL, 'ဇယားအသစ်ထပ်ယူခြင်း - ခြံ 5 - စာမျက်နှာ 47', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 Edg/142.0.0.0', '2025-11-16 14:16:41'),
 (25, 1, 5, 5, 'UPDATE', 'sales_summary', 0, NULL, NULL, 'ဒေတာအားလုံးသိမ်းဆည်းခြင်း - အရေအတွက်: 1 ခု', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 Edg/142.0.0.0', '2025-11-16 14:17:30'),
 (26, 1, 5, 5, 'DELETE', 'sales_summary', 162, NULL, NULL, 'အရောင်းမှတ်တမ်းဖျက်ခြင်း - ID: 162', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 Edg/142.0.0.0', '2025-11-16 14:18:20'),
-(27, 1, 5, 5, 'DELETE', 'sales_summary', 0, NULL, NULL, 'ဒေတာအားလုံးဖျက်ခြင်း - အရေအတွက်: 1 ခု', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 Edg/142.0.0.0', '2025-11-16 14:18:27');
+(27, 1, 5, 5, 'DELETE', 'sales_summary', 0, NULL, NULL, 'ဒေတာအားလုံးဖျက်ခြင်း - အရေအတွက်: 1 ခု', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 Edg/142.0.0.0', '2025-11-16 14:18:27'),
+(28, 1, 1, 48, 'INSERT', 'pagination', 48, NULL, NULL, 'ဇယားအသစ်ထပ်ယူခြင်း - ခြံ 1 - စာမျက်နှာ 48', '::1', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-11-19 05:31:37'),
+(29, 1, 1, 49, 'INSERT', 'pagination', 49, NULL, NULL, 'ဇယားအသစ်ထပ်ယူခြင်း - ခြံ 1 - စာမျက်နှာ 49', '::1', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-11-19 05:32:53');
 
 -- --------------------------------------------------------
 
@@ -148,7 +155,7 @@ CREATE TABLE `messages` (
   `file_size` int(11) DEFAULT NULL,
   `timestamp` timestamp NOT NULL DEFAULT current_timestamp(),
   `is_read` tinyint(1) DEFAULT 0
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `messages`
@@ -277,7 +284,7 @@ CREATE TABLE `pagination` (
   `date_created` timestamp NOT NULL DEFAULT current_timestamp(),
   `is_active` tinyint(1) DEFAULT 1,
   `farm_id` int(11) DEFAULT 1
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `pagination`
@@ -473,7 +480,22 @@ INSERT INTO `pagination` (`id`, `page_number`, `page_type`, `current_page`, `tot
 (461, 47, 'food', 1, 1, '2025-11-16 14:29:14', 1, 15),
 (462, 47, 'sales', 1, 1, '2025-11-16 14:29:14', 1, 15),
 (463, 47, 'medicine', 1, 1, '2025-11-16 14:29:14', 1, 15),
-(464, 47, 'grand-total', 1, 1, '2025-11-16 14:29:14', 1, 15);
+(464, 47, 'grand-total', 1, 1, '2025-11-16 14:29:14', 1, 15),
+(465, 48, 'summary', 1, 1, '2025-11-19 05:31:37', 1, 1),
+(466, 48, 'food', 1, 1, '2025-11-19 05:31:37', 1, 1),
+(467, 48, 'sales', 1, 1, '2025-11-19 05:31:37', 1, 1),
+(468, 48, 'medicine', 1, 1, '2025-11-19 05:31:37', 1, 1),
+(469, 48, 'grand-total', 1, 1, '2025-11-19 05:31:37', 1, 1),
+(470, 49, 'summary', 1, 1, '2025-11-19 05:32:53', 1, 1),
+(471, 49, 'food', 1, 1, '2025-11-19 05:32:53', 1, 1),
+(472, 49, 'sales', 1, 1, '2025-11-19 05:32:53', 1, 1),
+(473, 49, 'medicine', 1, 1, '2025-11-19 05:32:53', 1, 1),
+(474, 49, 'grand-total', 1, 1, '2025-11-19 05:32:53', 1, 1),
+(485, 50, 'summary', 1, 1, '2025-11-19 10:32:42', 1, 1),
+(486, 50, 'food', 1, 1, '2025-11-19 10:32:42', 1, 1),
+(487, 50, 'sales', 1, 1, '2025-11-19 10:32:42', 1, 1),
+(488, 50, 'medicine', 1, 1, '2025-11-19 10:32:42', 1, 1),
+(489, 50, 'grand-total', 1, 1, '2025-11-19 10:32:42', 1, 1);
 
 -- --------------------------------------------------------
 
@@ -513,7 +535,7 @@ CREATE TABLE `sales_summary` (
   `comment_read` tinyint(1) DEFAULT 0,
   `comment_author_id` int(11) DEFAULT NULL,
   `comment_created_at` timestamp NULL DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `sales_summary`
@@ -579,7 +601,7 @@ CREATE TABLE `users` (
   `is_active` tinyint(1) DEFAULT 1,
   `last_activity` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `profile_pic` varchar(255) DEFAULT 'default_avatar.jpg'
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `users`
@@ -604,11 +626,10 @@ ALTER TABLE `farms`
   ADD UNIQUE KEY `farm_username` (`farm_username`);
 
 --
--- Indexes for table `food_summary`
+-- Indexes for table `feed_summary`
 --
-ALTER TABLE `food_summary`
-  ADD PRIMARY KEY (`id`),
-  ADD KEY `farm_id` (`farm_id`);
+ALTER TABLE `feed_summary`
+  ADD PRIMARY KEY (`id`);
 
 --
 -- Indexes for table `history_logs`
@@ -664,16 +685,16 @@ ALTER TABLE `farms`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=31;
 
 --
--- AUTO_INCREMENT for table `food_summary`
+-- AUTO_INCREMENT for table `feed_summary`
 --
-ALTER TABLE `food_summary`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+ALTER TABLE `feed_summary`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- AUTO_INCREMENT for table `history_logs`
 --
 ALTER TABLE `history_logs`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=28;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=30;
 
 --
 -- AUTO_INCREMENT for table `messages`
@@ -685,7 +706,7 @@ ALTER TABLE `messages`
 -- AUTO_INCREMENT for table `pagination`
 --
 ALTER TABLE `pagination`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=465;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=490;
 
 --
 -- AUTO_INCREMENT for table `sales_summary`
@@ -702,12 +723,6 @@ ALTER TABLE `users`
 --
 -- Constraints for dumped tables
 --
-
---
--- Constraints for table `food_summary`
---
-ALTER TABLE `food_summary`
-  ADD CONSTRAINT `food_summary_ibfk_1` FOREIGN KEY (`farm_id`) REFERENCES `farms` (`id`);
 
 --
 -- Constraints for table `history_logs`

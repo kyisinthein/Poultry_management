@@ -1,0 +1,83 @@
+:root{
+  --feed-green:#22c55e;
+  --feed-green-dark:#16a34a;
+  --feed-green-900:#0c7a35;
+  --feed-red:#ef4444;
+  --feed-red-dark:#dc2626;
+  --feed-red-900:#a61b1b;
+  --feed-shadow:rgba(16,24,40,0.18);
+}
+
+.save-btn{
+  background: linear-gradient(135deg, #16a34a, #22c55e);
+  color: var(--white-color);
+  border: 1px solid rgba(255,255,255,0.2);
+  padding: 10px 14px;
+  border-radius: 12px;
+  cursor: pointer;
+  margin: 4px 0;
+  font-weight: 400;
+  letter-spacing: .2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 100px;
+  transition: transform .1s ease, box-shadow .2s ease, filter .2s ease;
+}
+.save-btn:hover{
+  filter: brightness(1.05);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(34, 197, 94, 0.35);
+}
+
+.btn-delete, .delete-btn{
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: var(--white-color);
+  border: 1px solid rgba(255,255,255,0.2);
+  padding: 10px 14px;
+  border-radius: 12px;
+  cursor: pointer;
+  margin: 4px 0;
+  font-weight: 400;
+  letter-spacing: .2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 100px;
+  transition: transform .1s ease, box-shadow .2s ease, filter .2s ease;
+}
+.btn-delete:hover, .delete-btn:hover{
+  filter: brightness(1.05);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(239, 68, 68, 0.35);
+}
+
+.header-actions .btn{
+  border:none;
+  border-radius:12px;
+  padding:10px 14px;
+  font-weight:600;
+}
+.btn-primary{ background:#2563eb; color:#fff; }
+.btn-secondary{ background:#64748b; color:#fff; }
+.btn-danger{ background:#ef4444; color:#fff; }
+.btn-search{ background:#22c55e; color:#fff; }
+.btn-clear{ background:#64748b; color:#fff; }
+
+.btn-toolbar{
+  border:none;
+  border-radius:12px;
+  padding:8px 10px;
+  background:#1e293b;
+  color:#fff;
+}
+
+/* spacing for action columns */
+#feedTable td:nth-last-child(3),
+#feedTable th:nth-last-child(3){
+  text-align:center;
+}
+#feedTable td:nth-last-child(2),
+#feedTable th:nth-last-child(2){
+  text-align:center;
+}
