@@ -30,6 +30,15 @@
   box-shadow: 0 8px 18px rgba(34, 197, 94, 0.35);
 }
 
+.save-btn.pending{
+  background: linear-gradient(135deg, #f59e0b, #fbbf24);
+  color: #1f2937;
+}
+.save-btn.pending:hover{
+  filter: brightness(1.05);
+  transform: translateY(-1px);
+}
+
 .btn-delete, .delete-btn{
   background: linear-gradient(135deg, #ef4444, #dc2626);
   color: var(--white-color);

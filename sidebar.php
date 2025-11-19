@@ -38,7 +38,7 @@ $current_page_number = $_GET['page'] ?? 1;
 
 // Get current file name for navigation highlighting
 $current_file = basename($_SERVER['PHP_SELF']);
-$link_prefix = (strpos($_SERVER['PHP_SELF'], '/Feed/') !== false) ? '../' : '';
+$link_prefix = (preg_match('#/Poultry_management/(Feed|Medicine)/#', $_SERVER['PHP_SELF'])) ? '../' : '';
 ?>
 
 <!-- sidebar.php -->
@@ -70,7 +70,7 @@ $link_prefix = (strpos($_SERVER['PHP_SELF'], '/Feed/') !== false) ? '../' : '';
       <i class="fas fa-list-alt"></i>
       <span>အရောင်းစာရင်းချုပ်</span>
     </a>
-    <a href="<?php echo $link_prefix; ?>medicine.php?farm_id=<?php echo $current_farm_id; ?>&page=<?php echo $current_page_number; ?>" class="nav-item <?php echo $current_file == 'medicine.php' ? 'active' : ''; ?>" data-page="medicine">
+    <a href="<?php echo $link_prefix; ?>Medicine/medicine.php?farm_id=<?php echo $current_farm_id; ?>&page=<?php echo $current_page_number; ?>" class="nav-item <?php echo $current_file == 'medicine.php' ? 'active' : ''; ?>" data-page="medicine">
       <i class="fas fa-plus"></i>
       <span>ဆေးစာရင်းချုပ်</span>
     </a>

@@ -358,6 +358,7 @@ class SalesManager {
         const newRow = document.createElement('tr');
         newRow.innerHTML = this.getEmptyRowHTML(chickenType, initialCount, currentCount, newDate);
         tbody.appendChild(newRow);
+        this.markRowPending(newRow);
         
         // Recalculate all rows to update cumulative values
         this.calculateCumulativeTotals();
@@ -389,7 +390,7 @@ class SalesManager {
             <td class="editable" data-field="final_weight">0</td>
             <td class="editable" data-field="fcr">0</td>
             <td>
-                <button class="save-btn">သိမ်းရန်</button>
+                <button class="save-btn pending">သိမ်းရန်</button>
                 <button class="delete-btn" data-id="${tempId}">ဖျက်ရန်</button>
             </td>
             <td class="comment-cell">
@@ -463,6 +464,7 @@ class SalesManager {
         
         this.currentEditing.textContent = newValue;
         this.calculateRowTotals(row);
+        this.markRowPending(row);
         this.currentEditing = null;
         this.originalValue = null;
     }
@@ -487,7 +489,7 @@ class SalesManager {
                 }
                    // Log the save action
             HistoryLogger.logSaveRow(response.id || rowData.id);
-
+                this.markRowSaved(row);
                 this.loadData();
             })
             .catch(error => {
@@ -865,6 +867,11 @@ class SalesManager {
             row.innerHTML = this.getRowHTML(item);
             tbody.appendChild(row);
             this.calculateRowTotals(row);
+            if (item.id) {
+                this.markRowSaved(row);
+            } else {
+                this.markRowPending(row);
+            }
         });
     }
 
@@ -913,7 +920,7 @@ class SalesManager {
             <td class="editable" data-field="final_weight">${item.final_weight || 0}</td>
             <td class="editable" data-field="fcr">${item.fcr || 0}</td>
             <td>
-            <button class="save-btn">သိမ်းရန်</button>
+            <button class="${item.id ? 'save-btn saved' : 'save-btn pending'}">${item.id ? 'သိမ်းပြီး' : 'သိမ်းရန်'}</button>
             <button class="delete-btn">ဖျက်ရန်</button>
         </td>
             <td class="comment-cell">
@@ -931,6 +938,22 @@ class SalesManager {
                 </div>
             </td>
         `;
+    }
+
+    markRowPending(row) {
+        const btn = row.querySelector('.save-btn');
+        if (!btn) return;
+        btn.textContent = 'သိမ်းရန်';
+        btn.classList.add('pending');
+        btn.classList.remove('saved');
+    }
+
+    markRowSaved(row) {
+        const btn = row.querySelector('.save-btn');
+        if (!btn) return;
+        btn.textContent = 'သိမ်းပြီး';
+        btn.classList.remove('pending');
+        btn.classList.add('saved');
     }
 
     loadSampleData() {

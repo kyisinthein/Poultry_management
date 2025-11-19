@@ -380,7 +380,8 @@ if (isset($_SESSION['error'])) {
                   echo '<td class="editable" data-field="total_feed_weight">' . ($row['total_feed_weight'] ?: '0') . '</td>';
                   echo '<td class="editable" data-field="final_weight">' . ($row['final_weight'] ?: '0') . '</td>';
                   echo '<td class="editable" data-field="fcr">' . ($row['fcr'] ?: '0') . '</td>';
-                  echo '<td>
+                echo '<td>
+                  <button class="save-btn saved">သိမ်းပြီး</button>
                   <button class="btn-edit"><i class="fas fa-edit"></i></button>
                   <button class="btn-delete" data-id="' . $row['id'] . '"><i class="fas fa-trash"></i></button>
                 </td>';

@@ -254,7 +254,7 @@ function fmt($n){
                   <td class="editable" data-field="unit_price"><?php echo fmt($row['unit_price']); ?></td>
                   <td class="editable" data-field="total_cost"><?php echo fmt($row['total_cost']); ?></td>
                   <td>
-                    <button class="save-btn">သိမ်းရန်</button>
+                    <button class="save-btn saved">သိမ်းပြီး</button>
                   </td>
                   <td>
                     <button class="btn-delete" data-id="<?php echo $row['id']; ?>">ဖျက်ရန်</button>
@@ -354,6 +354,7 @@ function finishEditing(cell){
   const row = cell.closest('tr');
   recalcRow(row);
   recalcTotals();
+  markRowPending(row);
 }
 
 function cancelEditing(cell){
@@ -373,6 +374,22 @@ function getRowData(row){
   data.page_number = currentPage;
   data.farm_id = currentFarmId;
   return data;
+}
+
+function markRowPending(row){
+  const btn = row.querySelector('.save-btn');
+  if (!btn) return;
+  btn.textContent = 'သိမ်းရန်';
+  btn.classList.add('pending');
+  btn.classList.remove('saved');
+}
+
+function markRowSaved(row){
+  const btn = row.querySelector('.save-btn');
+  if (!btn) return;
+  btn.textContent = 'သိမ်းပြီး';
+  btn.classList.remove('pending');
+  btn.classList.add('saved');
 }
 
 function sendRow(row){
@@ -397,6 +414,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
         if(res && res.success){
           if(res.id) row.setAttribute('data-id', res.id);
           alert('အောင်မြင်စွာသိမ်းဆည်းပြီး');
+          markRowSaved(row);
         } else {
           alert('သိမ်းရာတွင် အမှားရှိသည်');
         }
@@ -429,7 +447,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
       <td class="editable" data-field="quantity">0</td>
       <td class="editable" data-field="unit_price">0</td>
       <td class="editable" data-field="total_cost">0</td>
-      <td><button class="save-btn">သိမ်းရန်</button></td>
+      <td><button class="save-btn pending">သိမ်းရန်</button></td>
       <td><button class="btn-delete">ဖျက်ရန်</button></td>
       <td class="comment-cell"><div class="comment-container"><button class="btn-comment" data-id=""><i class="fa-regular fa-comment"></i></button></div></td>
     `;
