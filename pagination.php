@@ -83,12 +83,13 @@ window.currentGlobalPage = <?php echo $current_global_page; ?>;
 window.currentDisplayPage = <?php echo $current_page; ?>;
 </script>
 
-<div class="pagination-container">
+<div class="pagination-container sticky-top">
     <div class="pagination-info">
         <span>စာမျက်နှာ <?php echo $current_page; ?> / <?php echo $total_pages; ?></span>
     </div>
     
-    <div class="pagination">
+    <div class="pagination-wrap">
+      <div class="pagination">
         <!-- First Page -->
         <?php if ($current_page > 1): ?>
             <a href="?page=1&farm_id=<?php echo $current_farm_id; ?>" class="page-btn first">
@@ -143,6 +144,10 @@ window.currentDisplayPage = <?php echo $current_page; ?>;
                 <i class="fas fa-angle-double-right"></i>
             </span>
         <?php endif; ?>
+      </div>
+      <button class="page-btn btn-icon" id="toggleFullscreen" title="ကြည့်ရန်ကျယ်">
+          <i class="fas fa-expand"></i>
+      </button>
     </div>
 </div>
 
@@ -159,13 +164,16 @@ window.currentDisplayPage = <?php echo $current_page; ?>;
     justify-content: center;
     padding: 8px 12px;
     border: 1px solid #ddd;
-    border-radius: 4px;
+    border-radius: 8px;
     text-decoration: none;
     color: #333;
     background: white;
     min-width: 40px;
     transition: all 0.3s ease;
 }
+.pagination-wrap { display: flex; align-items: center; gap: 8px; }
+.pagination-wrap .btn-icon { border-color: #007bff; color: #007bff; }
+.pagination-wrap .btn-icon:hover { background: #007bff; color: white; }
 
 .page-btn:hover {
     background: #f0f0f0;

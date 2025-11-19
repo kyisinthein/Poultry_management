@@ -205,6 +205,7 @@ if (isset($_SESSION['error'])) {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>အရောင်းစာရင်းချုပ် - <?php echo htmlspecialchars($current_farm['farm_username'] ?? 'Default Farm'); ?> - ခြံ(<?php echo $current_farm['farm_no'] ?? 1; ?>)</title>
+  <link href="https://fonts.cdnfonts.com/css/noto-serif-myanmar" rel="stylesheet">
   <link rel="stylesheet" href="./assets/css/sell.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 </head>
@@ -284,11 +285,11 @@ if (isset($_SESSION['error'])) {
         </div>
       </div>
 
-      <!-- Your Original Table Structure -->
       <div class="table-container">
+        <?php include('pagination.php'); ?>
         <table>
           <thead>
-            <tr><th colspan="20">အရောင်းစာရင်းချုပ် - <?php echo htmlspecialchars($current_farm['farm_username'] ?? 'Default Farm'); ?> - ခြံ(<?php echo $current_farm['farm_no'] ?? 1; ?>) - စာမျက်နှာ <?php echo $current_page; ?></th></tr>
+            <tr><th style="padding-top: 25px;" colspan="20">အရောင်းစာရင်းချုပ် - <?php echo htmlspecialchars($current_farm['farm_username'] ?? 'Default Farm'); ?> - ခြံ(<?php echo $current_farm['farm_no'] ?? 1; ?>) - စာမျက်နှာ <?php echo $current_page; ?></th></tr>
             <tr>
               <th colspan="2" class="editable-header" data-field="chicken_type">ကြက်အမျိုးအစား CP</th>
               <th colspan="2">စာရင်းရှိ</th>
@@ -438,8 +439,7 @@ echo '</td>';
         </table>
       </div>
 
-      <!-- Pagination -->
-      <?php include('pagination.php'); ?>
+      
     </div>
   </div>
 
@@ -449,12 +449,14 @@ echo '</td>';
 <div id="commentModal" class="comment-modal">
   <div class="comment-modal-content">
     <div class="comment-modal-header">
-      <span class="comment-modal-title" id="commentModalTitle">မှတ်ချက်ပေးရန်</span>
+      <div class="comment-header-left">
+        <span class="comment-modal-title" id="commentModalTitle">မှတ်ချက်ပေးရန်</span>
+        <div id="commentInfo" class="comment-info"></div>
+      </div>
       <button class="comment-modal-close">&times;</button>
     </div>
     <div class="comment-modal-body">
       <textarea id="commentText" class="comment-textarea" placeholder="မှတ်ချက်ရေးရန်..."></textarea>
-      <div id="commentInfo" class="comment-info"></div>
     </div>
     <div class="comment-modal-footer">
       <button type="button" id="btnCommentSave" class="btn-comment-save">သိမ်းရန်</button>
@@ -848,4 +850,39 @@ btnCommentSave.addEventListener('click', function() {
   }
 });</script>
 </body>
+<script>
+  (function(){
+    const root = document.querySelector('.sell_container');
+    const btn = document.getElementById('toggleFullscreen');
+    if (!btn || !root) return;
+    function setState(active){
+      root.classList.toggle('fullscreen', active);
+      document.body.classList.toggle('fullscreen-mode', active);
+      const icon = btn.querySelector('i');
+      if (active) {
+        icon.classList.remove('fa-expand');
+        icon.classList.add('fa-compress');
+        btn.title = 'ပုံမှန်အရွယ်သို့ပြန်ရန်';
+        try { localStorage.setItem('sellFullscreen', '1'); } catch(e) {}
+      } else {
+        icon.classList.remove('fa-compress');
+        icon.classList.add('fa-expand');
+        btn.title = 'ကြည့်ရန်ကျယ်';
+        try { localStorage.setItem('sellFullscreen', '0'); } catch(e) {}
+      }
+    }
+    btn.addEventListener('click', function(){
+      const active = !root.classList.contains('fullscreen');
+      setState(active);
+    });
+    document.addEventListener('keydown', function(e){
+      if (e.key === 'Escape' && root.classList.contains('fullscreen')) setState(false);
+    });
+    // Persist fullscreen across page navigation
+    try {
+      const stored = localStorage.getItem('sellFullscreen');
+      if (stored === '1') setState(true);
+    } catch(e) {}
+  })();
+</script>
 </html>

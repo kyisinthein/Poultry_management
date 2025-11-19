@@ -283,8 +283,8 @@ $current_data = $food_data;
         </div>
       </div>
 
-      <!-- DIFFERENT TABLE STRUCTURE FOR FOOD -->
       <div class="table-container">
+        <?php include 'pagination.php'; ?>
         <form id="foodForm" method="POST" action="update_food.php">
           <input type="hidden" name="page" value="<?php echo $current_page; ?>">
           <input type="hidden" name="farm_id" value="<?php echo $current_farm_id; ?>">
@@ -346,11 +346,7 @@ $current_data = $food_data;
         </form>
       </div>
 
-      <!-- Include Pagination -->
-      <?php 
-      // Include pagination with current variables
-      include 'pagination.php'; 
-      ?>
+      
     </div>
   </div>
 

@@ -41,25 +41,15 @@ $current_file = basename($_SERVER['PHP_SELF']);
 ?>
 
 <!-- sidebar.php -->
-<div class="sidebar">
+  <div class="sidebar">
   <div class="sidebar-header">
-    <button class="back-btn" onclick="goBackToDashboard()">
-      <i class="fas fa-arrow-left"></i>
-    </button>
-    <div class="user-profile">
-      <div class="avatar">
-        <?php 
-          // Get first character of farm username for avatar
-          echo mb_substr($current_farm['farm_username'] ?? 'အ', 0, 1, 'UTF-8');
-        ?>
-      </div>
-      <div class="user-info">
-        <span class="user-name"><?php echo htmlspecialchars($current_farm['farm_username'] ?? 'အောင်စိုးမင်း'); ?></span>
-       
-      </div>
-      <i class="fa-solid fa-arrow-right"></i> <span class="user-name">ခြံ (<?php echo htmlspecialchars($current_farm['farm_no'] ?? 'ခြံ'); ?>)</span>
-      
+    <div class="sidebar-title">
+      <span class="farm-name"><?php echo htmlspecialchars($current_farm['farm_username'] ?? 'အောင်စိုးမင်း'); ?></span>
+      <span class="farm-no">ခြံ (<?php echo htmlspecialchars($current_farm['farm_no'] ?? 1); ?>)</span>
     </div>
+    <button class="toggle-sidebar" onclick="toggleSidebar()" aria-label="Toggle sidebar">
+      <i class="fas fa-bars"></i>
+    </button>
   </div>
 
   <nav class="sidebar-nav">
@@ -105,8 +95,19 @@ $current_file = basename($_SERVER['PHP_SELF']);
 </div>
 
 <script>
-function goBackToDashboard() {
-  window.location.href = 'dashboard.php';
+function toggleSidebar() {
+  const el = document.querySelector('.sidebar');
+  const collapsed = el.classList.toggle('collapsed');
+  try { localStorage.setItem('sidebarCollapsed', collapsed ? '1' : '0'); } catch(e) {}
 }
+
+(() => {
+  try {
+    const stored = localStorage.getItem('sidebarCollapsed');
+    if (stored === '1') {
+      document.querySelector('.sidebar').classList.add('collapsed');
+    }
+  } catch(e) {}
+})();
 </script>
 

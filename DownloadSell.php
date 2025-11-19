@@ -211,8 +211,8 @@ if (isset($_SESSION['error'])) {
         </div>
       </div>
 
-      <!-- Table Structure -->
       <div class="table-container">
+        <?php include('pagination.php'); ?>
         <table id="salesTable">
           <thead>
             <tr><th colspan="19">အရောင်းစာရင်းချုပ် - <?php echo htmlspecialchars($current_farm['farm_username'] ?? 'Default Farm'); ?> - ခြံ(<?php echo $current_farm['farm_no'] ?? 1; ?>) - စာမျက်နှာ <?php echo $current_page; ?></th></tr>
@@ -376,8 +376,7 @@ if (isset($_SESSION['error'])) {
         </table>
       </div>
 
-      <!-- Pagination -->
-      <?php include('pagination.php'); ?>
+      
     </div>
   </div>
 
