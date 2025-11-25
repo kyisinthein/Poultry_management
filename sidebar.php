@@ -38,7 +38,25 @@ $current_page_number = $_GET['page'] ?? 1;
 
 // Get current file name for navigation highlighting
 $current_file = basename($_SERVER['PHP_SELF']);
-$link_prefix = (preg_match('#/Poultry_management/(Summary|Feed|Medicine)/#', $_SERVER['PHP_SELF'])) ? '../' : '';
+
+// If we are inside a subdirectory (Summary, Feed, Medicine, grand_total), step up one level for links
+$link_prefix = preg_match('#/(Summary|Feed|Medicine|grand_total)/#i', $_SERVER['PHP_SELF']) ? '../' : '';
+
+// Track last visited page per section so pagination choices don't bleed across tabs
+$page_type_map = [
+  'summary.php'    => 'summary',
+  'feed.php'       => 'food',
+  'sell.php'       => 'sales',
+  'medicine.php'   => 'medicine',
+  'grand-total.php'=> 'grand-total'
+];
+
+if (isset($page_type_map[$current_file])) {
+  $page_type = $page_type_map[$current_file];
+  $_SESSION['last_pages'][$page_type] = $current_page_number;
+}
+
+$last_pages = $_SESSION['last_pages'] ?? [];
 ?>
 
 <!-- sidebar.php -->
@@ -58,23 +76,23 @@ $link_prefix = (preg_match('#/Poultry_management/(Summary|Feed|Medicine)/#', $_S
       <i class="fas fa-home"></i>
       <span>ပင်မစာမျက်နှာ</span>
     </a>
-    <a href="<?php echo $link_prefix; ?>Summary/summary.php?farm_id=<?php echo $current_farm_id; ?>&page=<?php echo $current_page_number; ?>" class="nav-item <?php echo $current_file == 'summary.php' ? 'active' : ''; ?>" data-page="summary">
+    <a href="<?php echo $link_prefix; ?>Summary/summary.php?farm_id=<?php echo $current_farm_id; ?>&page=<?php echo $last_pages['summary'] ?? 1; ?>" class="nav-item <?php echo $current_file == 'summary.php' ? 'active' : ''; ?>" data-page="summary">
       <i class="fas fa-chart-bar"></i>
       <span><?php echo htmlspecialchars($current_farm['farm_username'] ?? 'အောင်စိုးမင်း'); ?></span>
     </a>
-    <a href="<?php echo $link_prefix; ?>Feed/feed.php?farm_id=<?php echo $current_farm_id; ?>&page=<?php echo $current_page_number; ?>" class="nav-item <?php echo $current_file == 'feed.php' ? 'active' : ''; ?>" data-page="food">
+    <a href="<?php echo $link_prefix; ?>Feed/feed.php?farm_id=<?php echo $current_farm_id; ?>&page=<?php echo $last_pages['food'] ?? 1; ?>" class="nav-item <?php echo $current_file == 'feed.php' ? 'active' : ''; ?>" data-page="food">
       <i class="fas fa-utensils"></i>
       <span>အစာစာရင်းချုပ်</span>
     </a>
-    <a href="<?php echo $link_prefix; ?>sell.php?farm_id=<?php echo $current_farm_id; ?>&page=<?php echo $current_page_number; ?>" class="nav-item <?php echo $current_file == 'sell.php' ? 'active' : ''; ?>" data-page="sales">
+    <a href="<?php echo $link_prefix; ?>sell.php?farm_id=<?php echo $current_farm_id; ?>&page=<?php echo $last_pages['sales'] ?? 1; ?>" class="nav-item <?php echo $current_file == 'sell.php' ? 'active' : ''; ?>" data-page="sales">
       <i class="fas fa-list-alt"></i>
       <span>အရောင်းစာရင်းချုပ်</span>
     </a>
-    <a href="<?php echo $link_prefix; ?>Medicine/medicine.php?farm_id=<?php echo $current_farm_id; ?>&page=<?php echo $current_page_number; ?>" class="nav-item <?php echo $current_file == 'medicine.php' ? 'active' : ''; ?>" data-page="medicine">
+    <a href="<?php echo $link_prefix; ?>Medicine/medicine.php?farm_id=<?php echo $current_farm_id; ?>&page=<?php echo $last_pages['medicine'] ?? 1; ?>" class="nav-item <?php echo $current_file == 'medicine.php' ? 'active' : ''; ?>" data-page="medicine">
       <i class="fas fa-plus"></i>
       <span>ဆေးစာရင်းချုပ်</span>
     </a>
-    <a href="<?php echo $link_prefix; ?>grand-total.php?farm_id=<?php echo $current_farm_id; ?>&page=<?php echo $current_page_number; ?>" class="nav-item <?php echo $current_file == 'grand-total.php' ? 'active' : ''; ?>" data-page="grand-total">
+    <a href="<?php echo $link_prefix; ?>grand-total.php?farm_id=<?php echo $current_farm_id; ?>&page=<?php echo $last_pages['grand-total'] ?? 1; ?>" class="nav-item <?php echo $current_file == 'grand-total.php' ? 'active' : ''; ?>" data-page="grand-total">
       <i class="fas fa-calculator"></i>
       <span>Grand Total</span>
     </a>
