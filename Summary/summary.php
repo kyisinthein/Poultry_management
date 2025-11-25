@@ -105,7 +105,7 @@ if (!$table_check) {
     $create_sql = "
   CREATE TABLE IF NOT EXISTS summary (
     id INT(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
-
+    chicken_type ENUM('CP', 'KBZ') NOT NULL DEFAULT 'CP',
     age INT(11) DEFAULT 0,
     date DATE NOT NULL,
 
@@ -253,19 +253,29 @@ function parseAmount($text)
                                             echo htmlspecialchars($headerDate);
                                             ?>
                             </th>
-                            <th colspan="7" class="editable-header" data-field="chicken_type">ကြက်အမျိုးအစား CP</th>
-                            <th colspan="2" class="editable-header" data-field="initial_count">
+                            <th colspan="6" class="editable-header" data-field="chicken_type">ကြက်အမျိုးအစား CP</th>
+                            <th class="editable-header" data-field="initial_count">
                                 <?php
-                                $headerTime = '';
-                                if (!empty($summary_data) && !empty($summary_data[0]['date'])) {
-                                    // Convert to timestamp
-                                    $timeStamp = strtotime($summary_data[0]['date']);
-
-                                    // Extract hour only → force minutes to 00
-                                    $headerTime = date('H:00', $timeStamp);
+                                try {
+                                    $initial_count_sql = "SELECT initial_count FROM sales_summary WHERE page_number = ? AND farm_id = ? ORDER BY date ASC LIMIT 1";
+                                    $initial_count_result = fetchOne($initial_count_sql, [$current_global_page, $current_farm_id]);
+                                    echo $initial_count_result ? $initial_count_result['initial_count'] : '0';
+                                } catch (Exception $e) {
+                                    echo '0';
+                                }
+                                ?>
+                            </th>
+                            <th colspan="2">
+                                <?php
+                                $headerTime = '00:00';
+                                if (!empty($summary_data[0]['date'])) {
+                                    $datePart = $summary_data[0]['date'];
+                                    $headerTime = date('H:00', strtotime($datePart . ' 16:00:00'));
                                 }
                                 echo htmlspecialchars($headerTime);
                                 ?>
+
+
                             </th>
 
                             <th colspan="6"></th>
@@ -400,7 +410,7 @@ function parseAmount($text)
             </div>
         </div>
     </div>
-
+    <script src="../assets/js/sales_manager.js"></script>
     <script>
         const currentFarmId = <?php echo $current_farm_id; ?>;
         const currentPage = <?php echo $current_page; ?>;
