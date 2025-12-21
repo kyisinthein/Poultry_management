@@ -87,106 +87,50 @@ $total_pages = count($display_pages);
 // Store mapping in session for use in other parts of the application
 $_SESSION['page_mapping'][$current_farm_id] = $page_mapping;
 
-// Handle add new table
-if (isset($_POST['add_new_table'])) {
-  try {
-      $submitted_farm_id = $_POST['farm_id'] ?? $current_farm_id;
-      
-      // Find the next available page number that doesn't conflict globally
-      $max_page_sql = "SELECT MAX(page_number) as max_page FROM pagination";
-      $max_page_result = fetchOne($max_page_sql);
-      $new_page = ($max_page_result['max_page'] ?: 0) + 1;
-      
-      // Insert new pagination record for ALL page types for this farm
-      $page_types = ['summary', 'food', 'sales', 'medicine', 'grand-total'];
-      $success_count = 0;
-      
-      foreach ($page_types as $type) {
-          try {
-              $insert_sql = "INSERT INTO pagination (page_number, page_type, farm_id) VALUES (?, ?, ?)";
-              executeQuery($insert_sql, [$new_page, $type, $submitted_farm_id]);
-              $success_count++;
-          } catch (PDOException $e) {
-              // If duplicate entry, try the next page number
-              if (strpos($e->getMessage(), '1062') !== false) {
-                  $new_page++;
-                  $insert_sql = "INSERT INTO pagination (page_number, page_type, farm_id) VALUES (?, ?, ?)";
-                  executeQuery($insert_sql, [$new_page, $type, $submitted_farm_id]);
-                  $success_count++;
-              } else {
-                  throw $e; // Re-throw if it's not a duplicate error
-              }
-          }
-      }
-      
-      if ($success_count > 0) {
-        // Log the new page action
-        logHistory($user['id'], $submitted_farm_id, $new_page, 'INSERT', 'pagination', $new_page, null, null, "ဇယားအသစ်ထပ်ယူခြင်း - ခြံ $submitted_farm_id - စာမျက်နှာ $new_page");
-          $_SESSION['success'] = "ဇယားအသစ်ထပ်ယူပြီးပါပြီ။ စာမျက်နှာအသစ်: " . $new_page . " ကို ဖိုင်အားလုံးအတွက်ဖန်တီးပြီးပါပြီ။";
-      } else {
-          $_SESSION['error'] = "ဇယားအသစ်ထပ်ယူရန် မအောင်မြင်ပါ။";
-      }
-      
-      header("Location: sell.php?page=" . $new_page . "&farm_id=" . $submitted_farm_id);
-      exit();
-      
-  } catch (PDOException $e) {
-      $_SESSION['error'] = "Error creating new table: " . $e->getMessage();
-      header("Location: sell.php?farm_id=" . $current_farm_id);
-      exit();
-  }
-}
-
-// Handle delete current page - FIXED VERSION
-if (isset($_POST['delete_current_page'])) {
-    try {
-        $current_page_to_delete = $_POST['page'] ?? 1;
-        $farm_id_to_delete = $_POST['farm_id'] ?? $current_farm_id;
-        $global_page_to_delete = $_POST['global_page'] ?? $current_global_page;
+// DATA INITIALIZATION - If no sales data exists, create initial data
+try {
+    $check_data_sql = "SELECT COUNT(*) as data_count FROM sales_summary WHERE page_number = ? AND farm_id = ?";
+    $data_count_result = fetchOne($check_data_sql, [$current_global_page, $current_farm_id]);
+    $data_count = $data_count_result ? $data_count_result['data_count'] : 0;
+    
+    // If no data exists for this farm/page, create initial data
+    if ($data_count == 0) {
+        // Create initial sample data
+        $initial_data = [
+            'farm_id' => $current_farm_id,
+            'page_number' => $current_global_page,
+            'date' => date('Y-m-d'),
+            'sold_count' => 0,
+            'weight_per_chicken' => 0,
+            'total_sold_count' => 0,
+            'total_weight' => 0,
+            'daily_weight' => 0,
+            'dead_count' => 0,
+            'mortality_rate' => 0,
+            'cumulative_sold_count' => 0,
+            'surplus_deficit' => 0,
+            'weight_21to30' => 0,
+            'weight_31to36' => 0,
+            'weight_37to_end' => 0,
+            'total_chicken_weight' => 0,
+            'total_feed_consumption_rate' => 0,
+            'total_feed_weight' => 0,
+            'final_weight' => 0,
+            'fcr' => 0,
+            'chicken_type' => 'CP',
+            'initial_count' => 4080,
+            'current_count' => 3880
+        ];
         
-        // Don't allow deleting page 1
-        if ($current_page_to_delete == 1) {
-            $_SESSION['error'] = "စာမျက်နှာ ၁ ကိုဖျက်လို့မရပါ။";
-            header("Location: sell.php?page=" . $current_page_to_delete . "&farm_id=" . $farm_id_to_delete);
-            exit();
-        }
+        $fields = implode(', ', array_keys($initial_data));
+        $placeholders = implode(', ', array_fill(0, count($initial_data), '?'));
+        $values = array_values($initial_data);
         
-        // Use the provided global page number
-        if (!$global_page_to_delete) {
-            $_SESSION['error'] = "စာမျက်နှာရှာမတွေ့ပါ။";
-            header("Location: sell.php?page=1&farm_id=" . $farm_id_to_delete);
-            exit();
-        }
-        
-        // Delete from pagination table for all page types for this farm AND global page
-        $page_types = ['summary', 'food', 'sales', 'medicine', 'grand-total'];
-        $deleted_count = 0;
-        
-        foreach ($page_types as $type) {
-            $delete_sql = "DELETE FROM pagination WHERE page_type = ? AND page_number = ? AND farm_id = ?";
-            $stmt = $pdo->prepare($delete_sql);
-            $stmt->execute([$type, $global_page_to_delete, $farm_id_to_delete]);
-            $deleted_count += $stmt->rowCount();
-        }
-        
-        // Delete sales data for this global page and farm
-        $delete_data_sql = "DELETE FROM sales_summary WHERE page_number = ? AND farm_id = ?";
-        executeQuery($delete_data_sql, [$global_page_to_delete, $farm_id_to_delete]);
-        
-        if ($deleted_count > 0) {
-            $_SESSION['success'] = "စာမျက်နှာ " . $current_page_to_delete . " ကိုဖျက်ပြီးပါပြီ။ စာမျက်နှာ ၁ သို့ပြန်သွားပါမည်။";
-        } else {
-            $_SESSION['error'] = "စာမျက်နှာဖျက်ရန် မအောင်မြင်ပါ။";
-        }
-        
-        header("Location: sell.php?page=1&farm_id=" . $farm_id_to_delete);
-        exit();
-        
-    } catch (PDOException $e) {
-        $_SESSION['error'] = "Error deleting page: " . $e->getMessage();
-        header("Location: sell.php?page=" . ($_POST['page'] ?? 1) . "&farm_id=" . ($_POST['farm_id'] ?? $current_farm_id));
-        exit();
+        $insert_sql = "INSERT INTO sales_summary ($fields) VALUES ($placeholders)";
+        executeQuery($insert_sql, $values);
     }
+} catch (Exception $e) {
+    error_log("Data initialization error: " . $e->getMessage());
 }
 
 // Show success/error messages
@@ -205,7 +149,6 @@ if (isset($_SESSION['error'])) {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>အရောင်းစာရင်းချုပ် - <?php echo htmlspecialchars($current_farm['farm_username'] ?? 'Default Farm'); ?> - ခြံ(<?php echo $current_farm['farm_no'] ?? 1; ?>)</title>
-  <link href="https://fonts.cdnfonts.com/css/noto-serif-myanmar" rel="stylesheet">
   <link rel="stylesheet" href="./assets/css/sell.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 </head>
@@ -251,6 +194,10 @@ if (isset($_SESSION['error'])) {
             <i class="fas fa-save"></i>
             Save-all
           </button>
+          <button class="btn btn-secondary" id="downloadExcel">
+            <i class="fas fa-file-excel"></i>
+            Excel Download
+          </button>
           <button class="btn btn-danger" id="deleteAllData">
             <i class="fas fa-trash"></i>
             Delete-all (ဒေတာအားလုံး)
@@ -287,9 +234,9 @@ if (isset($_SESSION['error'])) {
 
       <div class="table-container">
         <?php include('pagination.php'); ?>
-        <table>
+        <table id="salesTable">
           <thead>
-            <tr><th style="padding-top: 25px;" colspan="20">အရောင်းစာရင်းချုပ် - <?php echo htmlspecialchars($current_farm['farm_username'] ?? 'Default Farm'); ?> - ခြံ(<?php echo $current_farm['farm_no'] ?? 1; ?>) - စာမျက်နှာ <?php echo $current_page; ?></th></tr>
+            <tr><th colspan="19">အရောင်းစာရင်းချုပ် - <?php echo htmlspecialchars($current_farm['farm_username'] ?? 'Default Farm'); ?> - ခြံ(<?php echo $current_farm['farm_no'] ?? 1; ?>) - စာမျက်နှာ <?php echo $current_page; ?></th></tr>
             <tr>
               <th colspan="2" class="editable-header" data-field="chicken_type">ကြက်အမျိုးအစား CP</th>
               <th colspan="2">စာရင်းရှိ</th>
@@ -344,20 +291,35 @@ if (isset($_SESSION['error'])) {
               <th data-field="total_feed_weight">ကြက်စာအလေးချိန်စုစုပေါင်း</th>
               <th data-field="final_weight">အလေးချိန်</th>
               <th data-field="fcr">FCR</th>
-              <th>ပြုပြင်ရန်</th>
-              <th data-field="comments">မှတ်ချက်ပေးရန်</th>
+              <th></th>
+              <th>မှတ်ချက်</th>
             </tr>
           </thead>
           <tbody id="salesTableBody">
             <?php
+            // Get search dates if any
+            $start_date = $_GET['start_date'] ?? null;
+            $end_date = $_GET['end_date'] ?? null;
+            
             // Fetch sales data for current page and farm
             try {
               $sales_sql = "SELECT s.*, u.username as comment_author 
               FROM sales_summary s 
               LEFT JOIN users u ON s.comment_author_id = u.id 
-              WHERE s.page_number = ? AND s.farm_id = ? 
-              ORDER BY s.date ASC";
-              $sales_data = fetchAll($sales_sql, [$current_global_page, $current_farm_id]);
+              WHERE s.page_number = ? AND s.farm_id = ?";
+              
+              $params = [$current_global_page, $current_farm_id];
+              
+              // Add date filter if search dates are provided
+              if ($start_date && $end_date) {
+                  $sales_sql .= " AND s.date BETWEEN ? AND ?";
+                  $params[] = $start_date;
+                  $params[] = $end_date;
+              }
+              
+              $sales_sql .= " ORDER BY s.date ASC";
+              
+              $sales_data = fetchAll($sales_sql, $params);
               
               if ($sales_data && count($sales_data) > 0) {
                 foreach ($sales_data as $row) {
@@ -380,60 +342,62 @@ if (isset($_SESSION['error'])) {
                   echo '<td class="editable" data-field="total_feed_weight">' . ($row['total_feed_weight'] ?: '0') . '</td>';
                   echo '<td class="editable" data-field="final_weight">' . ($row['final_weight'] ?: '0') . '</td>';
                   echo '<td class="editable" data-field="fcr">' . ($row['fcr'] ?: '0') . '</td>';
-                echo '<td>
-                  <button class="save-btn saved">သိမ်းပြီး</button>
-                  <button class="btn-edit"><i class="fas fa-edit"></i></button>
-                  <button class="btn-delete" data-id="' . $row['id'] . '"><i class="fas fa-trash"></i></button>
-                </td>';
-         // Comment column with badge
-echo '<td class="comment-cell">';
-echo '<div class="comment-container">';
+                  
+                  // Action buttons
+                  echo '<td>
+                    <button class="save-btn saved">သိမ်းပြီး</button>
+                    <button class="btn-delete" data-id="' . $row['id'] . '"><i class="fas fa-trash"></i></button>
+                  </td>';
+                  
+                  // Comment column with badge
+                  echo '<td class="comment-cell">';
+                  echo '<div class="comment-container">';
 
-// Get comment author name if exists
-$comment_author_name = $row['comment_author'] ?? '';
-if (empty($comment_author_name) && $row['comment_author_id']) {
-    $author_sql = "SELECT username FROM users WHERE id = ?";
-    $author_result = fetchOne($author_sql, [$row['comment_author_id']]);
-    $comment_author_name = $author_result ? $author_result['username'] : '';
-}
+                  // Get comment author name if exists
+                  $comment_author_name = $row['comment_author'] ?? '';
+                  if (empty($comment_author_name) && $row['comment_author_id']) {
+                      $author_sql = "SELECT username FROM users WHERE id = ?";
+                      $author_result = fetchOne($author_sql, [$row['comment_author_id']]);
+                      $comment_author_name = $author_result ? $author_result['username'] : '';
+                  }
 
-// Comment icon with badge
-$badge_class = '';
-$has_comment_value = $row['has_comment'] ? '1' : '0';
-$comment_read_value = $row['comment_read'] ? '1' : '0';
+                  // Comment icon with badge
+                  $badge_class = '';
+                  $has_comment_value = $row['has_comment'] ? '1' : '0';
+                  $comment_read_value = $row['comment_read'] ? '1' : '0';
 
-if ($row['has_comment']) {
-  if ($user['role'] === 'admin') {
-    // Admin sees all comments with blue badge
-    $badge_class = 'badge-comment-admin';
-  } else {
-    // User sees red badge for unread, green for read
-    $badge_class = $row['comment_read'] ? 'badge-comment-read' : 'badge-comment-unread';
-  }
-}
+                  if ($row['has_comment']) {
+                    if ($user['role'] === 'admin') {
+                      // Admin sees all comments with blue badge
+                      $badge_class = 'badge-comment-admin';
+                    } else {
+                      // User sees red badge for unread, green for read
+                      $badge_class = $row['comment_read'] ? 'badge-comment-read' : 'badge-comment-unread';
+                    }
+                  }
 
-echo '<button class="btn-comment" data-id="' . $row['id'] . '" 
-        data-has-comment="' . $has_comment_value . '"
-        data-comment-read="' . $comment_read_value . '"
-        data-current-comment="' . htmlspecialchars($row['comments'] ?? '') . '"
-        data-comment-author="' . htmlspecialchars($comment_author_name) . '"
-        data-comment-date="' . ($row['comment_created_at'] ?? '') . '">';
-echo '<i class="fa-regular fa-comment"></i>';
-if ($row['has_comment']) {
-  echo '<span class="comment-badge ' . $badge_class . '"></span>';
-}
-echo '</button>';
+                  echo '<button class="btn-comment" data-id="' . $row['id'] . '" 
+                          data-has-comment="' . $has_comment_value . '"
+                          data-comment-read="' . $comment_read_value . '"
+                          data-current-comment="' . htmlspecialchars($row['comments'] ?? '') . '"
+                          data-comment-author="' . htmlspecialchars($comment_author_name) . '"
+                          data-comment-date="' . ($row['comment_created_at'] ?? '') . '">';
+                  echo '<i class="fa-regular fa-comment"></i>';
+                  if ($row['has_comment']) {
+                    echo '<span class="comment-badge ' . $badge_class . '"></span>';
+                  }
+                  echo '</button>';
 
-echo '</div>';
-echo '</td>';
-                
-                echo '</tr>';
+                  echo '</div>';
+                  echo '</td>';
+                  
+                  echo '</tr>';
                 }
               } else {
-                echo '<tr><td colspan="20" style="text-align: center; padding: 20px;">ဒီစာမျက်နှာအတွက် ဒေတာမရှိပါ။ အသစ်ထည့်ရန် "rowအသစ်ထပ်ယူရန်" ကိုနှိပ်ပါ။</td></tr>';
+                echo '<tr><td colspan="19" style="text-align: center; padding: 20px;">ဒီစာမျက်နှာအတွက် ဒေတာမရှိပါ။</td></tr>';
               }
             } catch (Exception $e) {
-              echo '<tr><td colspan="20" style="text-align: center; color: red;">Error loading data: ' . $e->getMessage() . '</td></tr>';
+              echo '<tr><td colspan="19" style="text-align: center; color: red;">Error loading data: ' . $e->getMessage() . '</td></tr>';
             }
             ?>
           </tbody>
@@ -443,31 +407,6 @@ echo '</td>';
       
     </div>
   </div>
-
-
-
-<!-- Comment Modal -->
-<div id="commentModal" class="comment-modal">
-  <div class="comment-modal-content">
-    <div class="comment-modal-header">
-      <div class="comment-header-left">
-        <span class="comment-modal-title" id="commentModalTitle">မှတ်ချက်ပေးရန်</span>
-        <div id="commentInfo" class="comment-info"></div>
-      </div>
-      <button class="comment-modal-close">&times;</button>
-    </div>
-    <div class="comment-modal-body">
-      <textarea id="commentText" class="comment-textarea" placeholder="မှတ်ချက်ရေးရန်..."></textarea>
-    </div>
-    <div class="comment-modal-footer">
-      <button type="button" id="btnCommentSave" class="btn-comment-save">သိမ်းရန်</button>
-      <button type="button" id="btnCommentMarkRead" class="btn-comment-mark-read" style="display: none;">ဖတ်ပြီးပါပြီ</button>
-      <button type="button" id="btnCommentCancel" class="btn-comment-cancel">မလုပ်တော့ပါ</button>
-    </div>
-  </div>
-</div>
-
-
 
 <script>
 // Pass PHP user data to JavaScript
@@ -481,409 +420,189 @@ window.currentUser = {
 const currentFarmId = <?php echo $current_farm_id; ?>;
 const currentPage = <?php echo $current_page; ?>;
 const totalPages = <?php echo $total_pages; ?>;
-</script>
 
+// Get search parameters
+const urlParams = new URLSearchParams(window.location.search);
+const startDate = urlParams.get('start_date');
+const endDate = urlParams.get('end_date');
 
-  <script>
-    // Get current farm ID for JavaScript
-    const currentFarmId = <?php echo $current_farm_id; ?>;
-    const currentPage = <?php echo $current_page; ?>;
-    const totalPages = <?php echo $total_pages; ?>;
-
-    // Fixed Save-all functionality
-    document.getElementById('saveAllData').addEventListener('click', function() {
-        // Check if we're on the last page
-        if (currentPage === totalPages) {
-            // Warn user but don't auto-create new page
-            if (!confirm(`သင်သည် နောက်ဆုံးစာမျက်နှာ (${currentPage}) တွင် ဒေတာသိမ်းနေပါသည်။\n\nဒေတာအသစ်ထည့်လိုပါက "ဇယားအသစ်ထပ်ယူရန်" ကိုအရင်နှိပ်ပါ။\n\nလက်ရှိစာမျက်နှာအတွက်သာ ဒေတာသိမ်းမည်။\n\nဆက်လုပ်မည်လား?`)) {
-                return false;
-            }
-        }
-        
-        // Collect all data from the table
-        const salesData = [];
-        const rows = document.querySelectorAll('#salesTableBody tr[data-id]');
-        
-        rows.forEach(row => {
-            const rowData = {
-                id: row.getAttribute('data-id'),
-                date: row.querySelector('[data-field="date"]')?.textContent || '',
-                sold_count: row.querySelector('[data-field="sold_count"]')?.textContent || '0',
-                weight_per_chicken: row.querySelector('[data-field="weight_per_chicken"]')?.textContent || '0',
-                total_sold_count: row.querySelector('[data-field="total_sold_count"]')?.textContent || '0',
-                total_weight: row.querySelector('[data-field="total_weight"]')?.textContent || '0',
-                daily_weight: row.querySelector('[data-field="daily_weight"]')?.textContent || '0',
-                dead_count: row.querySelector('[data-field="dead_count"]')?.textContent || '0',
-                mortality_rate: row.querySelector('[data-field="mortality_rate"]')?.textContent || '0',
-                cumulative_sold_count: row.querySelector('[data-field="cumulative_sold_count"]')?.textContent || '0',
-                surplus_deficit: row.querySelector('[data-field="surplus_deficit"]')?.textContent || '0',
-                weight_21to30: row.querySelector('[data-field="weight_21to30"]')?.textContent || '0',
-                weight_31to36: row.querySelector('[data-field="weight_31to36"]')?.textContent || '0',
-                weight_37to_end: row.querySelector('[data-field="weight_37to_end"]')?.textContent || '0',
-                total_chicken_weight: row.querySelector('[data-field="total_chicken_weight"]')?.textContent || '0',
-                total_feed_consumption_rate: row.querySelector('[data-field="total_feed_consumption_rate"]')?.textContent || '0',
-                total_feed_weight: row.querySelector('[data-field="total_feed_weight"]')?.textContent || '0',
-                final_weight: row.querySelector('[data-field="final_weight"]')?.textContent || '0',
-                fcr: row.querySelector('[data-field="fcr"]')?.textContent || '0',
-                comments: row.querySelector('[data-field="comments"]')?.textContent || ''
-            };
-            salesData.push(rowData);
-        });
-        
-        // Send data to server
-        fetch('save_sales_all.php', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                farm_id: currentFarmId,
-                page: currentPage,
-                sales_data: salesData
-            })
-        })
-        .then(response => response.json())
-        .then(result => {
-            if (result.success) {
-                alert(`✅ ဒေတာများအောင်မြင်စွာသိမ်းဆည်းပြီးပါပြီ။\nသိမ်းဆည်းထားသောအရေအတွက်: ${result.saved_count}\nစာမျက်နှာ: ${result.current_page}`);
-                
-                // Reload the page to reflect changes, but stay on same page
-                setTimeout(() => {
-                    window.location.href = `sell.php?page=${currentPage}&farm_id=${currentFarmId}`;
-                }, 1000);
-            } else {
-                alert('❌ ဒေတာသိမ်းဆည်းရာတွင် အမှားတစ်ခုရှိပါသည်: ' + result.error);
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('❌ ဒေတာသိမ်းဆည်းရာတွင် အမှားတစ်ခုရှိပါသည်။');
-        });
-    });
-
-    // Update confirm delete function
-    function confirmDeletePage() {
-        const currentPage = <?php echo $current_page; ?>;
-        const currentFarmId = <?php echo $current_farm_id; ?>;
-        
-        return confirm(`⚠️ သတိပြုပါ!\n\nစာမျက်နှာ ${currentPage} ကိုဖျက်မှာသေချာပါသလား?\n\nဒီစာမျက်နှာကို ဖိုင်အားလုံးမှ (sell.php, food.php, medicine.php) ဖျက်သွားမည်။\n\nဒေတာများအားလုံးပျက်သွားမည်။ ဆက်လုပ်မှာသေချာပါသလား?`);
-    }
-
-    // Simple JavaScript for pagination and search functionality
-    document.addEventListener('DOMContentLoaded', function() {
-        // Search functionality
-        const searchBtn = document.querySelector('.btn-search');
-        const clearBtn = document.querySelector('.btn-clear');
-        const startDate = document.getElementById('startDate');
-        const endDate = document.getElementById('endDate');
-
-        searchBtn.addEventListener('click', function() {
-            const start = startDate.value;
-            const end = endDate.value;
-            
-            if (start && end) {
-                // Include farm_id in search
-                window.location.href = `sell.php?page=${currentPage}&farm_id=${currentFarmId}&start_date=${start}&end_date=${end}`;
-            } else {
-                alert('ကျေးဇူးပြု၍ ရက်စွဲနှစ်ခုလုံးထည့်ပါ');
-            }
-        });
-
-        clearBtn.addEventListener('click', function() {
-            startDate.value = '';
-            endDate.value = '';
-            // Reset to current page and farm
-            window.location.href = `sell.php?page=${currentPage}&farm_id=${currentFarmId}`;
-        });
-
-        // Update pagination links to include farm_id
-        const pageLinks = document.querySelectorAll('.page-btn');
-        pageLinks.forEach(link => {
-            if (link.href) {
-                const url = new URL(link.href);
-                url.searchParams.set('farm_id', currentFarmId);
-                link.href = url.toString();
-            }
-        });
-    });
-  </script>
-
-  <script src="./assets/js/sales_manager.js"></script>
-
-  <script>// Comment System JavaScript
+// Download functionality
 document.addEventListener('DOMContentLoaded', function() {
-  const commentModal = document.getElementById('commentModal');
-  const commentText = document.getElementById('commentText');
-  const commentModalTitle = document.getElementById('commentModalTitle');
-  const commentInfo = document.getElementById('commentInfo');
-  const btnCommentSave = document.getElementById('btnCommentSave');
-  const btnCommentMarkRead = document.getElementById('btnCommentMarkRead');
-  const btnCommentCancel = document.getElementById('btnCommentCancel');
-  const closeBtn = document.querySelector('.comment-modal-close');
-  
-  let currentCommentRowId = null;
-  const currentUserRole = '<?php echo $user["role"]; ?>';
-  const currentUserId = <?php echo $user["id"]; ?>;
-
-  // Open comment modal
-  document.addEventListener('click', function(e) {
-    if (e.target.closest('.btn-comment')) {
-      const btn = e.target.closest('.btn-comment');
-      currentCommentRowId = btn.getAttribute('data-id');
-      const hasComment = btn.getAttribute('data-has-comment') === '1';
-      const commentRead = btn.getAttribute('data-comment-read') === '1';
-      const currentComment = btn.getAttribute('data-current-comment') || '';
-      const commentAuthor = btn.getAttribute('data-comment-author');
-      const commentDate = btn.getAttribute('data-comment-date');
-      
-      openCommentModal(currentCommentRowId, hasComment, commentRead, currentComment, commentAuthor, commentDate);
-    }
-  });
-
-  function openCommentModal(rowId, hasComment, commentRead, currentComment, commentAuthor, commentDate) {
-    currentCommentRowId = rowId;
-    commentText.value = currentComment;
-    
-    if (currentUserRole === 'admin') {
-      // Admin mode - can edit any comment
-      commentModalTitle.textContent = 'မှတ်ချက်ပေးရန်';
-      commentText.readOnly = false;
-      btnCommentSave.style.display = 'inline-block';
-      btnCommentMarkRead.style.display = 'none';
-      
-      if (hasComment) {
-        commentInfo.textContent = `မှတ်ချက်ရေးထားသူ: ${commentAuthor} | ရက်စွဲ: ${formatDate(commentDate)}`;
-        commentInfo.style.display = 'block';
-      } else {
-        commentInfo.style.display = 'none';
-      }
-    } else {
-      // User mode - view only
-      commentModalTitle.textContent = 'မှတ်ချက်ကြည့်ရန်';
-      commentText.readOnly = true;
-      btnCommentSave.style.display = 'none';
-      
-      if (hasComment) {
-        commentInfo.textContent = `မှတ်ချက်ရေးထားသူ: ${commentAuthor} | ရက်စွဲ: ${formatDate(commentDate)}`;
-        commentInfo.style.display = 'block';
-        
-        // Show "Mark as Read" button if comment is unread
-        if (!commentRead) {
-          btnCommentMarkRead.style.display = 'inline-block';
-        } else {
-          btnCommentMarkRead.style.display = 'none';
-        }
-      } else {
-        commentInfo.textContent = 'မှတ်ချက်မရှိပါ';
-        commentInfo.style.display = 'block';
-        btnCommentMarkRead.style.display = 'none';
-      }
-    }
-    
-    commentModal.style.display = 'block';
-  }
-
-// Save comment (Admin only) - FIXED JSON VERSION
-btnCommentSave.addEventListener('click', function() {
-    console.log('Save comment clicked - currentCommentRowId:', currentCommentRowId);
-    
-    if (!currentCommentRowId) {
-        console.error('No currentCommentRowId found!');
-        alert('မှတ်ချက်သိမ်းရန် row ID မရှိပါ');
-        return;
-    }
-    
-    // Check if it's a temporary ID
-    if (currentCommentRowId.startsWith('temp_')) {
-        alert('ကျေးဇူးပြု၍ ဒီ row ကိုအရင် save လုပ်ပါ (Save-all ကိုနှိပ်ပါ)');
-        return;
-    }
-    
-    const comment = commentText.value.trim();
-    
-    console.log('Saving comment:', {
-        row_id: currentCommentRowId,
-        comment: comment,
-        user_id: currentUserId,
-        comment_length: comment.length
+    // Download as Excel
+    document.getElementById('downloadExcel').addEventListener('click', function() {
+        downloadTable('excel');
     });
-    
-    // Show loading state
-    const originalText = btnCommentSave.textContent;
-    btnCommentSave.innerHTML = '<i class="fas fa-spinner fa-spin"></i> သိမ်းဆည်းနေသည်...';
-    btnCommentSave.disabled = true;
-    
-    fetch('save_comment.php', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            row_id: currentCommentRowId,
-            comment: comment,
-            user_id: currentUserId
-        })
-    })
-    .then(response => {
-        console.log('Response status:', response.status);
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        return response.text().then(text => {
-            try {
-                return JSON.parse(text);
-            } catch (e) {
-                console.error('Invalid JSON response:', text);
-                throw new Error('Invalid response from server: ' + text.substring(0, 100));
-            }
-        });
-    })
-    .then(result => {
-        console.log('Save comment result:', result);
+
+    // Download as Word
+    document.getElementById('downloadWord').addEventListener('click', function() {
+        downloadTable('word');
+    });
+
+    // Download as Image
+    document.getElementById('downloadImage').addEventListener('click', function() {
+        downloadTable('image');
+    });
+
+    // Print functionality
+    document.getElementById('printTable').addEventListener('click', function() {
+        printTable();
+    });
+
+    // Search functionality
+    const searchBtn = document.querySelector('.btn-search');
+    const clearBtn = document.querySelector('.btn-clear');
+    const startDateInput = document.getElementById('startDate');
+    const endDateInput = document.getElementById('endDate');
+
+    // Set current search dates in inputs if they exist
+    if (startDate) {
+        startDateInput.value = startDate;
+    }
+    if (endDate) {
+        endDateInput.value = endDate;
+    }
+
+    searchBtn.addEventListener('click', function() {
+        const start = startDateInput.value;
+        const end = endDateInput.value;
         
-        if (result.success) {
-            // Update the button badge
-            const commentBtn = document.querySelector(`.btn-comment[data-id="${currentCommentRowId}"]`);
-            console.log('Found comment button:', commentBtn);
-            
-            if (commentBtn) {
-                commentBtn.setAttribute('data-has-comment', '1');
-                commentBtn.setAttribute('data-comment-read', '0');
-                commentBtn.setAttribute('data-current-comment', comment);
-                commentBtn.setAttribute('data-comment-author', window.currentUser.username);
-                commentBtn.setAttribute('data-comment-date', new Date().toISOString());
-                
-                // Update badge
-                let badge = commentBtn.querySelector('.comment-badge');
-                if (!badge) {
-                    badge = document.createElement('span');
-                    badge.className = 'comment-badge';
-                    commentBtn.appendChild(badge);
-                }
-                badge.className = 'comment-badge badge-comment-admin';
-                
-                console.log('Updated comment button attributes');
-            }
-            
-            alert('မှတ်ချက်သိမ်းဆည်းပြီးပါပြီ။');
-            commentModal.style.display = 'none';
-            
+        if (start && end) {
+            // Include farm_id in search
+            window.location.href = `DownloadSell.php?page=${currentPage}&farm_id=${currentFarmId}&start_date=${start}&end_date=${end}`;
         } else {
-            alert('မှတ်ချက်သိမ်းဆည်းရာတွင် အမှားတစ်ခုရှိပါသည်: ' + (result.error || 'Unknown error'));
+            alert('ကျေးဇူးပြု၍ ရက်စွဲနှစ်ခုလုံးထည့်ပါ');
         }
-    })
-    .catch(error => {
-        console.error('Error saving comment:', error);
-        alert('မှတ်ချက်သိမ်းဆည်းရာတွင် အမှားတစ်ခုရှိပါသည်။ ' + error.message);
-    })
-    .finally(() => {
-        // Restore button state
-        btnCommentSave.textContent = originalText;
-        btnCommentSave.disabled = false;
+    });
+
+    clearBtn.addEventListener('click', function() {
+        startDateInput.value = '';
+        endDateInput.value = '';
+        // Reset to current page and farm without date filters
+        window.location.href = `sell.php?page=${currentPage}&farm_id=${currentFarmId}`;
+    });
+
+    // Update pagination links to include farm_id and search dates
+    const pageLinks = document.querySelectorAll('.page-btn');
+    pageLinks.forEach(link => {
+        if (link.href) {
+            const url = new URL(link.href);
+            url.searchParams.set('farm_id', currentFarmId);
+            // Preserve search dates in pagination
+            if (startDate) {
+                url.searchParams.set('start_date', startDate);
+            }
+            if (endDate) {
+                url.searchParams.set('end_date', endDate);
+            }
+            link.href = url.toString();
+        }
     });
 });
 
-  // Mark as read (User only)
-  btnCommentMarkRead.addEventListener('click', function() {
-    if (!currentCommentRowId) return;
+function downloadTable(format) {
+    const table = document.getElementById('salesTable');
+    const farmName = '<?php echo htmlspecialchars($current_farm['farm_username'] ?? 'Default Farm'); ?>';
+    const pageNumber = <?php echo $current_page; ?>;
     
-    fetch('mark_comment_read.php', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        row_id: currentCommentRowId
-      })
-    })
-    .then(response => response.json())
-    .then(result => {
-      if (result.success) {
-        // Update the button badge
-        const commentBtn = document.querySelector(`.btn-comment[data-id="${currentCommentRowId}"]`);
-        if (commentBtn) {
-          commentBtn.setAttribute('data-comment-read', '1');
-          
-          // Change badge to green
-          const badge = commentBtn.querySelector('.comment-badge');
-          if (badge) {
-            badge.className = 'comment-badge badge-comment-read';
-          }
-        }
-        
-        btnCommentMarkRead.style.display = 'none';
-        alert('မှတ်ချက်ဖတ်ပြီးကြောင်းအမှတ်အသားပြုလုပ်ပြီးပါပြီ။');
-      } else {
-        alert('အမှတ်အသားပြုလုပ်ရာတွင် အမှားတစ်ခုရှိပါသည်: ' + result.error);
-      }
-    })
-    .catch(error => {
-      console.error('Error:', error);
-      alert('အမှတ်အသားပြုလုပ်ရာတွင် အမှားတစ်ခုရှိပါသည်။');
-    });
-  });
-
-  // Close modal
-  function closeCommentModal() {
-    commentModal.style.display = 'none';
-    currentCommentRowId = null;
-    commentText.value = '';
-  }
-
-  btnCommentCancel.addEventListener('click', closeCommentModal);
-  closeBtn.addEventListener('click', closeCommentModal);
-
-  // Close modal when clicking outside
-  window.addEventListener('click', function(e) {
-    if (e.target === commentModal) {
-      closeCommentModal();
+    let fileName = `Sales_Summary_${farmName}_Page_${pageNumber}`;
+    
+    // Add search dates to filename if searching by date
+    if (startDate && endDate) {
+        fileName += `_${startDate}_to_${endDate}`;
     }
-  });
-
-  // Utility function to format date
-  function formatDate(dateString) {
-    if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('my-MM') + ' ' + date.toLocaleTimeString('my-MM', { 
-      hour: '2-digit', 
-      minute: '2-digit' 
-    });
-  }
-});</script>
-</body>
-<script>
-  (function(){
-    const root = document.querySelector('.sell_container');
-    const btn = document.getElementById('toggleFullscreen');
-    if (!btn || !root) return;
-    function setState(active){
-      root.classList.toggle('fullscreen', active);
-      document.body.classList.toggle('fullscreen-mode', active);
-      const icon = btn.querySelector('i');
-      if (active) {
-        icon.classList.remove('fa-expand');
-        icon.classList.add('fa-compress');
-        btn.title = 'ပုံမှန်အရွယ်သို့ပြန်ရန်';
-        try { localStorage.setItem('sellFullscreen', '1'); } catch(e) {}
-      } else {
-        icon.classList.remove('fa-compress');
-        icon.classList.add('fa-expand');
-        btn.title = 'ကြည့်ရန်ကျယ်';
-        try { localStorage.setItem('sellFullscreen', '0'); } catch(e) {}
-      }
+    
+    switch(format) {
+        case 'excel':
+            // Download as Excel
+            window.location.href = `download_excel_sell.php?farm_id=${currentFarmId}&page=${currentPage}&start_date=${startDate || ''}&end_date=${endDate || ''}`;
+            break;
+        case 'word':
+            // Download as Word
+            window.location.href = `download_word_sell.php?farm_id=${currentFarmId}&page=${currentPage}&start_date=${startDate || ''}&end_date=${endDate || ''}`;
+            break;
+        case 'image':
+            // Download as Image using html2canvas
+            if (typeof html2canvas !== 'undefined') {
+                html2canvas(table).then(canvas => {
+                    const link = document.createElement('a');
+                    link.download = `${fileName}.png`;
+                    link.href = canvas.toDataURL();
+                    link.click();
+                });
+            } else {
+                alert('Image download requires html2canvas library. Please include it in your project.');
+            }
+            break;
     }
-    btn.addEventListener('click', function(){
-      const active = !root.classList.contains('fullscreen');
-      setState(active);
-    });
-    document.addEventListener('keydown', function(e){
-      if (e.key === 'Escape' && root.classList.contains('fullscreen')) setState(false);
-    });
-    // Persist fullscreen across page navigation
-    try {
-      const stored = localStorage.getItem('sellFullscreen');
-      if (stored === '1') setState(true);
-    } catch(e) {}
-  })();
+}
+
+function printTable() {
+    const table = document.getElementById('salesTable');
+    const farmName = '<?php echo htmlspecialchars($current_farm['farm_username'] ?? 'Default Farm'); ?>';
+    const pageNumber = <?php echo $current_page; ?>;
+    
+    // Create a new window for printing
+    const printWindow = window.open('', '_blank');
+    
+    // Get search dates if any
+    const urlParams = new URLSearchParams(window.location.search);
+    const startDate = urlParams.get('start_date');
+    const endDate = urlParams.get('end_date');
+    
+    printWindow.document.write(`
+        <html>
+        <head>
+            <title>Print Sales Summary</title>
+            <style>
+                body { font-family: Arial, sans-serif; margin: 20px; }
+                .print-header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #000; padding-bottom: 10px; }
+                .print-header h1 { margin: 0; font-size: 18px; }
+                .print-info { text-align: center; margin-bottom: 15px; font-size: 14px; color: #666; }
+                table { width: 100%; border-collapse: collapse; font-size: 12px; }
+                th, td { border: 1px solid #000; padding: 6px; text-align: center; }
+                th { background-color: #f0f0f0; font-weight: bold; }
+                .print-footer { margin-top: 20px; text-align: center; font-size: 10px; color: #666; border-top: 1px solid #000; padding-top: 10px; }
+                @media print {
+                    body { margin: 0; }
+                    .no-print { display: none; }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="print-header">
+                <h1>အရောင်းစာရင်းချုပ် - ${farmName} - ခြံ(<?php echo $current_farm['farm_no'] ?? 1; ?>)</h1>
+            </div>
+            <div class="print-info">
+                စာမျက်နှာ: ${pageNumber}
+                ${startDate && endDate ? `<br>ရက်စွဲ: ${startDate} မှ ${endDate} အထိ` : ''}
+                <br>ပရင့်ထုတ်သည့်ရက်စွဲ: ${new Date().toLocaleDateString('my-MM')}
+            </div>
+    `);
+    
+    printWindow.document.write(table.outerHTML);
+    
+    printWindow.document.write(`
+            <div class="print-footer">
+                <?php echo htmlspecialchars($user['username']); ?> မှ ပရင့်ထုတ်သည်
+            </div>
+            <div class="no-print" style="margin-top: 20px; text-align: center;">
+                <button onclick="window.print()" style="padding: 10px 20px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer;">Print Now</button>
+                <button onclick="window.close()" style="padding: 10px 20px; background: #f44336; color: white; border: none; border-radius: 4px; cursor: pointer; margin-left: 10px;">Close</button>
+            </div>
+        </body>
+        </html>
+    `);
+    
+    printWindow.document.close();
+    
+    // Auto-print after a short delay
+    setTimeout(() => {
+        printWindow.print();
+    }, 500);
+}
 </script>
+<script src="./assets/js/sales_manager.js"></script>
+<!-- Include html2canvas for image download -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+</body>
 </html>

@@ -77,7 +77,7 @@ if (empty($sales_data)) {
 
 // Set headers for Excel download
 header('Content-Type: application/vnd.ms-excel');
-header('Content-Disposition: attachment; filename="sales_summary_' . $farm['farm_username'] . '_page_' . $page . '.xls"');
+header('Content-Disposition: attachment; filename="အရောင်းစာရင်းချုပ်(' . $farm['farm_username'] . '_p' . $page . ').xls"');
 header('Pragma: no-cache');
 header('Expires: 0');
 

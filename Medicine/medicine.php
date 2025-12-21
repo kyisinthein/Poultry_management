@@ -128,6 +128,7 @@ function parseAmount($text){ $value = 0; $unit = extractUnitText($text); $value 
             <button type="submit" name="delete_current_page" class="btn btn-delete-page"><i class="fas fa-trash"></i> ဒီစာမျက်နှာကိုဖျက်ရန် (စာမျက်နှာ <?php echo $current_page; ?>)</button>
           </form>
           <?php endif; ?>
+          <button class="btn btn-secondary" id="downloadExcel"><i class="fas fa-file-excel"></i> Excel Download</button>
           <button class="btn btn-danger" id="deleteAllData"><i class="fas fa-trash"></i> Delete-all (ဒေတာအားလုံး)</button>
         </div>
       </div>
@@ -319,6 +320,13 @@ document.addEventListener('DOMContentLoaded', ()=>{
   const pageLinks = document.querySelectorAll('.page-btn'); pageLinks.forEach(link=>{ if (link.href){ const url = new URL(link.href); url.searchParams.set('farm_id', currentFarmId); if (startDate && endDate){ url.searchParams.set('start_date', startDate); url.searchParams.set('end_date', endDate);} link.href = url.toString(); } });
 
   const deleteAllBtn = document.getElementById('deleteAllData'); deleteAllBtn.addEventListener('click', ()=>{ if (!confirm('ဤစာမျက်နှာရှိ ဒေတာအားလုံးကိုဖျက်မှာသေချာပါသလား?')) return; fetch('delete_all_medicine.php',{ method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ page_number: currentPage, farm_id: currentFarmId }) }).then(r=>r.json()).then(res=>{ if(res && res.success){ alert('ဒေတာအားလုံးဖျက်ပြီးပါပြီ'); location.href = `medicine.php?page=${currentPage}&farm_id=${currentFarmId}`; } else { alert('ဖျက်ရာတွင် အမှားရှိသည်'); } }).catch(()=>alert('Network error')); });
+
+  const downloadExcelBtn = document.getElementById('downloadExcel');
+  if (downloadExcelBtn) {
+    downloadExcelBtn.addEventListener('click', () => {
+      window.location.href = `download_excel_medicine.php?page=${currentPage}&farm_id=${currentFarmId}${startDate && endDate ? `&start_date=${startDate}&end_date=${endDate}` : ''}`;
+    });
+  }
 
   const pagWrap = document.querySelector('.pagination-wrap');
   if (pagWrap){

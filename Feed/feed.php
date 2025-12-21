@@ -199,6 +199,7 @@ function fmt($n){
             <button type="submit" name="delete_current_page" class="btn btn-delete-page"><i class="fas fa-trash"></i> ဒီစာမျက်နှာကိုဖျက်ရန် (စာမျက်နှာ <?php echo $current_page; ?>)</button>
           </form>
           <?php endif; ?>
+          <button class="btn btn-secondary" id="downloadExcel"><i class="fas fa-file-excel"></i> Excel Download</button>
           <button class="btn btn-danger" id="deleteAllData"><i class="fas fa-trash"></i> Delete-all (ဒေတာအားလုံး)</button>
         </div>
       </div>
@@ -500,6 +501,13 @@ document.addEventListener('DOMContentLoaded', ()=>{
     .then(res=>{ if(res && res.success){ alert('ဒေတာအားလုံးဖျက်ပြီးပါပြီ'); location.href = `feed.php?page=${currentPage}&farm_id=${currentFarmId}`; } else { alert('ဖျက်ရာတွင် အမှားရှိသည်'); } })
     .catch(()=>alert('Network error'));
   });
+
+  const downloadExcelBtn = document.getElementById('downloadExcel');
+  if (downloadExcelBtn) {
+    downloadExcelBtn.addEventListener('click', () => {
+      window.location.href = `download_excel_feed.php?page=${currentPage}&farm_id=${currentFarmId}${startDate && endDate ? `&start_date=${startDate}&end_date=${endDate}` : ''}`;
+    });
+  }
 });
 </script>
 <script>
