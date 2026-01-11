@@ -28,22 +28,8 @@ if (!$current_farm) {
 // Handle add new table
 if (isset($_POST['add_new_table'])) {
   try {
-      // Get current max page number from pagination table for this farm
-      $max_page_sql = "SELECT MAX(page_number) as max_page FROM pagination WHERE farm_id = ?";
-      $max_page_result = fetchOne($max_page_sql, [$current_farm_id]);
-      $new_page = ($max_page_result['max_page'] ?: 0) + 1;
-      
-      // Insert new pagination record for ALL page types for this farm
-      $page_types = ['summary', 'food', 'sales', 'medicine', 'grand-total'];
-      foreach ($page_types as $type) {
-          $check_sql = "SELECT id FROM pagination WHERE page_type = ? AND page_number = ? AND farm_id = ?";
-          $check_result = fetchOne($check_sql, [$type, $new_page, $current_farm_id]);
-          
-          if (!$check_result) {
-              $insert_sql = "INSERT INTO pagination (page_number, page_type, farm_id) VALUES (?, ?, ?)";
-              executeQuery($insert_sql, [$new_page, $type, $current_farm_id]);
-          }
-      }
+      $new_page = getNextPaginationPageNumber();
+      ensurePaginationPageTypes($new_page, $current_farm_id);
       
       $_SESSION['success'] = "ဇယားအသစ်ထပ်ယူပြီးပါပြီ။ စာမျက်နှာအသစ်: " . $new_page . " ကို ဖိုင်အားလုံးအတွက်ဖန်တီးပြီးပါပြီ။";
       header("Location: food.php?page=" . $new_page . "&farm_id=" . $current_farm_id);

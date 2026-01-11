@@ -35,7 +35,7 @@ try {
     $current_global_page = 1;
 }
 
-$sql = "SELECT * FROM feed_summary WHERE page_number = ? AND farm_id = ?";
+$sql = "SELECT * FROM summary WHERE page_number = ? AND farm_id = ?";
 $params = [$current_global_page, $farm_id];
 if ($start_date && $end_date) {
     $sql .= " AND date BETWEEN ? AND ?";
@@ -43,7 +43,7 @@ if ($start_date && $end_date) {
     $params[] = $end_date;
 }
 $sql .= " ORDER BY date ASC";
-$feed_data = fetchAll($sql, $params);
+$summary_data = fetchAll($sql, $params);
 
 function fmt($n)
 {
@@ -56,7 +56,7 @@ function fmt($n)
 }
 
 header('Content-Type: application/vnd.ms-excel');
-header('Content-Disposition: attachment; filename="FeedSummary(' . $farm['farm_username'] . '_p' . $page . ').xls"');
+header('Content-Disposition: attachment; filename="Summary(' . $farm['farm_username'] . '_p' . $page . ').xls"');
 header('Pragma: no-cache');
 header('Expires: 0');
 ?>
@@ -74,7 +74,7 @@ header('Expires: 0');
 </head>
 <body>
 
-<div class="title">အစာစာရင်းချုပ် - <?php echo htmlspecialchars($farm['farm_username']); ?> - ခြံ(<?php echo $farm['farm_no']; ?>) - စာမျက်နှာ <?php echo $page; ?></div>
+<div class="title">စာမျက်နှာ <?php echo $page; ?> - <?php echo htmlspecialchars($farm['farm_username']); ?> - ခြံ(<?php echo $farm['farm_no']; ?>)</div>
 
 <?php if ($start_date && $end_date): ?>
 <div style="text-align: center; margin-bottom: 15px;">ရက်စွဲ: <?php echo $start_date; ?> မှ <?php echo $end_date; ?> အထိ</div>
@@ -83,31 +83,43 @@ header('Expires: 0');
 <table border="1">
     <thead>
         <tr>
+            <th>အသက်</th>
             <th>ရက်စွဲ</th>
-            <th>အစာအမျိုးအစား</th>
-            <th>အစာအမည်</th>
-            <th>အရေအတွက်</th>
-            <th>ဈေးနှုန်း</th>
-            <th>ကုန်ကျငွေ</th>
+            <th>ကုမ္ပဏီဝင်</th>
+            <th>စပ်စာဝင်</th>
+            <th>အစာပေါင်း</th>
+            <th>ကုမ္ပဏီကျန်</th>
+            <th>စပ်စာကျန်</th>
+            <th>နေ့စဉ်အစာစားနှုန်း</th>
+            <th>စုစုပေါင်းအစာစားနှုန်း</th>
+            <th>အလေးချိန်</th>
+            <th>အသေ</th>
+            <th>စုစုပေါင်းအသေ</th>
             <th>မှတ်ချက်</th>
         </tr>
     </thead>
     <tbody>
-        <?php if ($feed_data && count($feed_data) > 0): ?>
-            <?php foreach ($feed_data as $row): ?>
+        <?php if ($summary_data && count($summary_data) > 0): ?>
+            <?php foreach ($summary_data as $row): ?>
             <tr>
+                <td><?php echo fmt($row['age']); ?></td>
                 <td><?php echo htmlspecialchars($row['date'] ?? ''); ?></td>
-                <td><?php echo htmlspecialchars($row['feed_category'] ?? ''); ?></td>
-                <td><?php echo htmlspecialchars($row['feed_name'] ?? ''); ?></td>
-                <td><?php echo fmt($row['quantity']); ?></td>
-                <td><?php echo fmt($row['unit_price']); ?></td>
-                <td><?php echo fmt($row['total_cost']); ?></td>
+                <td><?php echo fmt($row['company_in']); ?></td>
+                <td><?php echo fmt($row['mix_in']); ?></td>
+                <td><?php echo fmt($row['total_feed']); ?></td>
+                <td><?php echo fmt($row['company_left']); ?></td>
+                <td><?php echo fmt($row['mix_left']); ?></td>
+                <td><?php echo fmt($row['daily_rate']); ?></td>
+                <td><?php echo fmt($row['cumulative_rate']); ?></td>
+                <td><?php echo fmt($row['weight']); ?></td>
+                <td><?php echo fmt($row['dead']); ?></td>
+                <td><?php echo fmt($row['cumulative_dead']); ?></td>
                 <td><?php echo htmlspecialchars($row['comments'] ?? ''); ?></td>
             </tr>
             <?php endforeach; ?>
         <?php else: ?>
             <tr>
-                <td colspan="7" style="text-align: center;">ဒေတာမရှိပါ</td>
+                <td colspan="13" style="text-align: center;">ဒေတာမရှိပါ</td>
             </tr>
         <?php endif; ?>
     </tbody>
@@ -115,7 +127,7 @@ header('Expires: 0');
 
 <div style="margin-top: 20px; font-size: 12px;">
     <p>ပရင့်ထုတ်သည့်ရက်စွဲ: <?php echo date('Y-m-d H:i:s'); ?></p>
-    <p>စုစုပေါင်းမှတ်တမ်း: <?php echo count($feed_data); ?> ခု</p>
+    <p>စုစုပေါင်းမှတ်တမ်း: <?php echo count($summary_data); ?> ခု</p>
 </div>
 
 </body>

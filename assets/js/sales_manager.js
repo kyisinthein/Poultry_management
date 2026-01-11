@@ -684,7 +684,8 @@ class SalesManager {
         
         cells.forEach(cell => {
             const field = cell.getAttribute('data-field');
-            let value = cell.textContent.trim();
+            const input = cell.querySelector('input, textarea, select');
+            let value = input ? input.value.trim() : cell.textContent.trim();
             
             if (field !== 'date' && field !== 'comments') {
                 value = value ? parseFloat(value) || 0 : 0;
@@ -713,8 +714,8 @@ class SalesManager {
 
     async sendDataToServer(data) {
         const urlParams = new URLSearchParams(window.location.search);
-        const currentPage = urlParams.get('page') || 1;
-        const currentFarmId = urlParams.get('farm_id') || 1;
+        const currentPage = (window.currentGlobalPage || urlParams.get('page') || 1);
+        const currentFarmId = window.currentFarmId || urlParams.get('farm_id') || 1;
         
         console.log("Sending data with farm_id:", currentFarmId, "page:", currentPage);
         
@@ -742,14 +743,15 @@ class SalesManager {
 
     async sendBulkDataToServer(data, farmId) {
         const urlParams = new URLSearchParams(window.location.search);
-        const currentPage = urlParams.get('page') || 1;
+        const currentPage = (window.currentGlobalPage || urlParams.get('page') || 1);
+        const farm = window.currentFarmId || farmId;
         
-        console.log("Bulk Save - Farm ID:", farmId, "Page:", currentPage);
+        console.log("Bulk Save - Farm ID:", farm, "Page:", currentPage);
         console.log("Bulk Save - Data to send:", data);
         
         data.forEach(item => {
             item.page_number = currentPage;
-            item.farm_id = farmId;
+            item.farm_id = farm;
             
             const numericFields = [
                 'sold_count', 'weight_per_chicken', 'total_sold_count', 'total_weight',
@@ -772,7 +774,7 @@ class SalesManager {
         
         const payload = {
             sales: data,
-            farm_id: farmId,
+            farm_id: farm,
             page_number: currentPage
         };
         

@@ -17,6 +17,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 include 'database.php';
 
 /**
+ * Make sure sales_summary.id is AUTO_INCREMENT to avoid duplicate key errors
+ */
+function ensureSalesIdAutoIncrement() {
+    global $pdo;
+    try {
+        $sql = "SHOW COLUMNS FROM sales_summary LIKE 'id'";
+        $col = $pdo->query($sql)->fetch(PDO::FETCH_ASSOC);
+        if ($col && stripos($col['Extra'], 'auto_increment') === false) {
+            $pdo->exec("ALTER TABLE sales_summary MODIFY id INT(11) NOT NULL AUTO_INCREMENT");
+        }
+    } catch (PDOException $e) {
+        error_log("Auto increment check failed: " . $e->getMessage());
+    }
+}
+
+// Ensure ID column autoincrements (prevents duplicate PRIMARY=0)
+ensureSalesIdAutoIncrement();
+
+/**
  * Ensure pagination record exists for the given page and farm
  */
 function ensurePaginationExists($page_number, $farm_id) {

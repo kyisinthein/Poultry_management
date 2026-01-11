@@ -27,11 +27,9 @@ try{
   ensurePaginationExists($page_number, $farm_id);
   foreach ($items as $row){
     $id = $row['id'] ?? null;
-    $serial_no = intval($row['serial_no'] ?? 0);
     $name = $row['name'] ?? '';
     $type = $row['type'] ?? '';
     $quantity = intval($row['quantity'] ?? 0);
-    $weight = floatval($row['weight'] ?? 0);
     $sold = floatval($row['sold'] ?? 0);
     $dead = intval($row['dead'] ?? 0);
     $excess_deficit = $row['excess_deficit'] ?? '';
@@ -40,19 +38,22 @@ try{
     $company = $row['company'] ?? '';
     $mixed = $row['mixed'] ?? '';
     $feed_bag = intval($row['feed_bag'] ?? 0);
+    $used_feed_bags = intval($row['used_feed_bags'] ?? 0);
+    $feed_balance = intval($row['feed_balance'] ?? 0);
     $medicine = floatval($row['medicine'] ?? 0);
     $feed = floatval($row['feed'] ?? 0);
-    $charcoal = floatval($row['charcoal'] ?? 0);
-    $bran = floatval($row['bran'] ?? 0);
-    $lime = floatval($row['lime'] ?? 0);
+    $other_cost = floatval($row['other_cost'] ?? 0);
+    $avg_weight = floatval($row['avg_weight'] ?? 0);
+    $mortality_rate = floatval($row['mortality_rate'] ?? 0);
+    $fcr = floatval($row['fcr'] ?? 0);
     $tfcr = floatval($row['tfcr'] ?? 0);
     
     if ($id){
-      $stmt = $pdo->prepare('UPDATE grand_total SET serial_no=?, name=?, type=?, quantity=?, weight=?, sold=?, dead=?, excess_deficit=?, finished_weight=?, feed_weight=?, company=?, mixed=?, feed_bag=?, medicine=?, feed=?, charcoal=?, bran=?, lime=?, tfcr=?, page_number=?, farm_id=? WHERE id=?');
-      $stmt->execute([$serial_no, $name, $type, $quantity, $weight, $sold, $dead, $excess_deficit, $finished_weight, $feed_weight, $company, $mixed, $feed_bag, $medicine, $feed, $charcoal, $bran, $lime, $tfcr, $page_number, $farm_id, $id]);
+      $stmt = $pdo->prepare('UPDATE grand_total SET name=?, type=?, quantity=?, sold=?, dead=?, excess_deficit=?, finished_weight=?, feed_weight=?, company=?, mixed=?, feed_bag=?, used_feed_bags=?, feed_balance=?, medicine=?, feed=?, other_cost=?, avg_weight=?, mortality_rate=?, fcr=?, tfcr=?, page_number=?, farm_id=? WHERE id=?');
+      $stmt->execute([$name, $type, $quantity, $sold, $dead, $excess_deficit, $finished_weight, $feed_weight, $company, $mixed, $feed_bag, $used_feed_bags, $feed_balance, $medicine, $feed, $other_cost, $avg_weight, $mortality_rate, $fcr, $tfcr, $page_number, $farm_id, $id]);
     } else {
-      $stmt = $pdo->prepare('INSERT INTO grand_total (serial_no, name, type, quantity, weight, sold, dead, excess_deficit, finished_weight, feed_weight, company, mixed, feed_bag, medicine, feed, charcoal, bran, lime, tfcr, page_number, farm_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
-      $stmt->execute([$serial_no, $name, $type, $quantity, $weight, $sold, $dead, $excess_deficit, $finished_weight, $feed_weight, $company, $mixed, $feed_bag, $medicine, $feed, $charcoal, $bran, $lime, $tfcr, $page_number, $farm_id]);
+      $stmt = $pdo->prepare('INSERT INTO grand_total (name, type, quantity, sold, dead, excess_deficit, finished_weight, feed_weight, company, mixed, feed_bag, used_feed_bags, feed_balance, medicine, feed, other_cost, avg_weight, mortality_rate, fcr, tfcr, page_number, farm_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+      $stmt->execute([$name, $type, $quantity, $sold, $dead, $excess_deficit, $finished_weight, $feed_weight, $company, $mixed, $feed_bag, $used_feed_bags, $feed_balance, $medicine, $feed, $other_cost, $avg_weight, $mortality_rate, $fcr, $tfcr, $page_number, $farm_id]);
     }
   }
   echo json_encode(['success'=>true]);

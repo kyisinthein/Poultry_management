@@ -7,8 +7,25 @@ include 'database.php';
 try {
     $start_date = $_GET['start_date'] ?? null;
     $end_date = $_GET['end_date'] ?? null;
-    $page = $_GET['page'] ?? 1;
-    $farm_id = $_GET['farm_id'] ?? 1;
+    $page = intval($_GET['page'] ?? 1);
+    $farm_id = intval($_GET['farm_id'] ?? 1);
+
+    // Map display page to global page number for this farm
+    $page_to_fetch = $page;
+    try {
+        $pages_sql = "SELECT DISTINCT page_number FROM pagination WHERE farm_id = ? ORDER BY page_number ASC";
+        $pages_result = fetchAll($pages_sql, [$farm_id]);
+        $global_pages = array_column($pages_result, 'page_number');
+        $page_mapping = [];
+        foreach ($global_pages as $index => $global_page) {
+            $page_mapping[$index + 1] = $global_page;
+        }
+        if (isset($page_mapping[$page])) {
+            $page_to_fetch = $page_mapping[$page];
+        }
+    } catch (Exception $e) {
+        $page_to_fetch = $page;
+    }
     
     // Build base query
     $sql = "SELECT s.*, u.username as comment_author 
@@ -16,7 +33,7 @@ try {
             LEFT JOIN users u ON s.comment_author_id = u.id 
             WHERE s.page_number = ? AND s.farm_id = ?";
     
-    $params = [$page, $farm_id];
+    $params = [$page_to_fetch, $farm_id];
     
     // Add date filters if provided
     if ($start_date && $end_date) {

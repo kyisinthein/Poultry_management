@@ -13,34 +13,35 @@ $page = $_GET['page'] ?? 1;
 $start_date = $_GET['start_date'] ?? null;
 $end_date = $_GET['end_date'] ?? null;
 
-// Debug: Log parameters
-error_log("Download Excel - Farm ID: $farm_id, Page: $page, Start: $start_date, End: $end_date");
-
 // Get farm data
 $farm = fetchOne("SELECT * FROM farms WHERE id = ?", [$farm_id]);
 if (!$farm) {
     die("Farm not found");
 }
 
-// SIMPLIFIED: Directly use the page number from URL without complex mapping
-$current_global_page = $page;
-
-// Debug: Check what pages exist for this farm
-$pages_check_sql = "SELECT DISTINCT page_number FROM pagination WHERE farm_id = ? ORDER BY page_number";
-$existing_pages = fetchAll($pages_check_sql, [$farm_id]);
-error_log("Existing pages for farm $farm_id: " . implode(', ', array_column($existing_pages, 'page_number')));
-
-// Fetch sales data - SIMPLIFIED QUERY
-$sales_sql = "SELECT * FROM sales_summary WHERE farm_id = ?";
-$params = [$farm_id];
-
-// Add page filter if provided
-if ($page) {
-    $sales_sql .= " AND page_number = ?";
-    $params[] = $current_global_page;
+// Map display page to global page
+$current_global_page = 1;
+try {
+    $pages_sql = "SELECT DISTINCT page_number FROM pagination WHERE farm_id = ? ORDER BY page_number ASC";
+    $pages_result = fetchAll($pages_sql, [$farm_id]);
+    $global_pages = array_column($pages_result, 'page_number');
+    $page_mapping = [];
+    foreach ($global_pages as $index => $global_page) {
+        $display_page = $index + 1;
+        $page_mapping[$display_page] = $global_page;
+    }
+    if (isset($page_mapping[$page])) {
+        $current_global_page = $page_mapping[$page];
+    } else {
+        $current_global_page = $page_mapping[1] ?? 1;
+    }
+} catch (Exception $e) {
+    $current_global_page = 1;
 }
 
-// Add date filter if provided
+// Fetch sales data
+$sales_sql = "SELECT * FROM sales_summary WHERE page_number = ? AND farm_id = ?";
+$params = [$current_global_page, $farm_id];
 if ($start_date && $end_date) {
     $sales_sql .= " AND date BETWEEN ? AND ?";
     $params[] = $start_date;
@@ -49,35 +50,11 @@ if ($start_date && $end_date) {
 
 $sales_sql .= " ORDER BY date ASC";
 
-// Debug the final query
-error_log("Final SQL: $sales_sql");
-error_log("Params: " . implode(', ', $params));
-
 $sales_data = fetchAll($sales_sql, $params);
-
-// Debug: Check how many rows found
-error_log("Rows found: " . count($sales_data));
-
-// If no data found with page filter, try without page filter
-if (empty($sales_data)) {
-    error_log("No data found with page filter, trying without page filter");
-    $sales_sql = "SELECT * FROM sales_summary WHERE farm_id = ?";
-    $params = [$farm_id];
-    
-    if ($start_date && $end_date) {
-        $sales_sql .= " AND date BETWEEN ? AND ?";
-        $params[] = $start_date;
-        $params[] = $end_date;
-    }
-    
-    $sales_sql .= " ORDER BY date ASC";
-    $sales_data = fetchAll($sales_sql, $params);
-    error_log("Rows found without page filter: " . count($sales_data));
-}
 
 // Set headers for Excel download
 header('Content-Type: application/vnd.ms-excel');
-header('Content-Disposition: attachment; filename="အရောင်းစာရင်းချုပ်(' . $farm['farm_username'] . '_p' . $page . ').xls"');
+header('Content-Disposition: attachment; filename="sales_summary_' . $farm['farm_username'] . '_page_' . $page . '.xls"');
 header('Pragma: no-cache');
 header('Expires: 0');
 

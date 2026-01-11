@@ -51,16 +51,47 @@ $_SESSION['page_mapping'][$current_farm_id] = $page_mapping;
 
 if (isset($_POST['add_new_table'])) {
     try {
-        $max_page_sql = 'SELECT MAX(page_number) as max_page FROM pagination';
+        $submitted_farm_id = $_POST['farm_id'] ?? $current_farm_id;
+
+        // Find the next available page number that doesn't conflict globally
+        $max_page_sql = "SELECT MAX(page_number) as max_page FROM pagination";
         $max_page_result = fetchOne($max_page_sql);
         $new_page = ($max_page_result['max_page'] ?: 0) + 1;
+
+        // Insert new pagination record for ALL page types for this farm
         $page_types = ['summary', 'food', 'sales', 'medicine', 'grand-total'];
+        $success_count = 0;
+
         foreach ($page_types as $type) {
-            executeQuery('INSERT INTO pagination (page_number, page_type, farm_id) VALUES (?, ?, ?)', [$new_page, $type, $current_farm_id]);
+            try {
+                $insert_sql = "INSERT INTO pagination (page_number, page_type, farm_id) VALUES (?, ?, ?)";
+                executeQuery($insert_sql, [$new_page, $type, $submitted_farm_id]);
+                $success_count++;
+            } catch (PDOException $e) {
+                // If duplicate entry, try the next page number
+                if (strpos($e->getMessage(), '1062') !== false) {
+                    $new_page++;
+                    $insert_sql = "INSERT INTO pagination (page_number, page_type, farm_id) VALUES (?, ?, ?)";
+                    executeQuery($insert_sql, [$new_page, $type, $submitted_farm_id]);
+                    $success_count++;
+                } else {
+                    throw $e; // Re-throw if it's not a duplicate error
+                }
+            }
         }
-        header('Location: summary.php?page=' . ($total_pages + 1) . '&farm_id=' . $current_farm_id);
+
+        if ($success_count > 0) {
+            $_SESSION['success'] = "ဇယားအသစ်ထပ်ယူပြီးပါပြီ။ စာမျက်နှာအသစ်: " . $new_page . " ကို ဖိုင်အားလုံးအတွက်ဖန်တီးပြီးပါပြီ။";
+        } else {
+            $_SESSION['error'] = "ဇယားအသစ်ထပ်ယူရန် မအောင်မြင်ပါ။";
+        }
+
+        header('Location: summary.php?page=' . $new_page . '&farm_id=' . $submitted_farm_id);
         exit();
-    } catch (Exception $e) {
+    } catch (PDOException $e) {
+        $_SESSION['error'] = 'Error creating new table: ' . $e->getMessage();
+        header('Location: summary.php?page=' . $current_page . '&farm_id=' . $current_farm_id);
+        exit();
     }
 }
 
@@ -105,7 +136,7 @@ if (!$table_check) {
     $create_sql = "
   CREATE TABLE IF NOT EXISTS summary (
     id INT(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    chicken_type ENUM('CP', 'KBZ') NOT NULL DEFAULT 'CP',
+
     age INT(11) DEFAULT 0,
     date DATE NOT NULL,
 
@@ -215,6 +246,7 @@ function parseAmount($text)
                             <button type="submit" name="delete_current_page" class="btn btn-delete-page"><i class="fas fa-trash"></i> ဒီစာမျက်နှာကိုဖျက်ရန် (စာမျက်နှာ <?php echo $current_page; ?>)</button>
                         </form>
                     <?php endif; ?>
+                    <button class="btn btn-secondary" id="downloadExcel"><i class="fas fa-file-excel"></i> Excel Download</button>
                     <button class="btn btn-danger" id="deleteAllData"><i class="fas fa-trash"></i> Delete-all (ဒေတာအားလုံး)</button>
                 </div>
             </div>
@@ -253,29 +285,19 @@ function parseAmount($text)
                                             echo htmlspecialchars($headerDate);
                                             ?>
                             </th>
-                            <th colspan="6" class="editable-header" data-field="chicken_type">ကြက်အမျိုးအစား CP</th>
-                            <th class="editable-header" data-field="initial_count">
+                            <th colspan="7" class="editable-header" data-field="chicken_type">ကြက်အမျိုးအစား CP</th>
+                            <th colspan="2" class="editable-header" data-field="initial_count">
                                 <?php
-                                try {
-                                    $initial_count_sql = "SELECT initial_count FROM sales_summary WHERE page_number = ? AND farm_id = ? ORDER BY date ASC LIMIT 1";
-                                    $initial_count_result = fetchOne($initial_count_sql, [$current_global_page, $current_farm_id]);
-                                    echo $initial_count_result ? $initial_count_result['initial_count'] : '0';
-                                } catch (Exception $e) {
-                                    echo '0';
-                                }
-                                ?>
-                            </th>
-                            <th colspan="2">
-                                <?php
-                                $headerTime = '00:00';
-                                if (!empty($summary_data[0]['date'])) {
-                                    $datePart = $summary_data[0]['date'];
-                                    $headerTime = date('H:00', strtotime($datePart . ' 16:00:00'));
+                                $headerTime = '';
+                                if (!empty($summary_data) && !empty($summary_data[0]['date'])) {
+                                    // Convert to timestamp
+                                    $timeStamp = strtotime($summary_data[0]['date']);
+
+                                    // Extract hour only → force minutes to 00
+                                    $headerTime = date('H:00', $timeStamp);
                                 }
                                 echo htmlspecialchars($headerTime);
                                 ?>
-
-
                             </th>
 
                             <th colspan="6"></th>
@@ -401,16 +423,19 @@ function parseAmount($text)
                             <th></th>
                             <th id="sumDailyRate">0</th>
                             <th></th>
-                            <th></th>
+                            <th id="sumWeight">0</th>
                             <th></th>
                             <th id="sumCumulativeDead">0</th>
+                            <th></th>
+                            <th></th>
+                            <th></th>
                         </tr>
                     </tfoot>
                 </table>
             </div>
         </div>
     </div>
-    <script src="../assets/js/sales_manager.js"></script>
+
     <script>
         const currentFarmId = <?php echo $current_farm_id; ?>;
         const currentPage = <?php echo $current_page; ?>;
@@ -422,35 +447,55 @@ function parseAmount($text)
         let prev_cumulative_rate = 0;
         let prev_cumulative_dead = 0;
 
+        function getCellValue(cell) {
+            const input = cell.querySelector('input');
+            return input ? input.value.trim() : cell.textContent.trim();
+        }
+
         function recalcRow(row) {
-            const companyIn = parseFloat(row.querySelector('[data-field="company_in"]').textContent) || 0;
-            const mixIn = parseFloat(row.querySelector('[data-field="mix_in"]').textContent) || 0;
-            const companyLeft = parseFloat(row.querySelector('[data-field="company_left"]').textContent) || 0;
-            const mixLeft = parseFloat(row.querySelector('[data-field="mix_left"]').textContent) || 0;
-            const weight = parseFloat(row.querySelector('[data-field="weight"]').textContent) || 0;
-            const dead = parseInt(row.querySelector('[data-field="dead"]').textContent) || 0;
+            const companyInCell = row.querySelector('[data-field="company_in"]');
+            const mixInCell = row.querySelector('[data-field="mix_in"]');
+            const companyLeftCell = row.querySelector('[data-field="company_left"]');
+            const mixLeftCell = row.querySelector('[data-field="mix_left"]');
+            const weightCell = row.querySelector('[data-field="weight"]');
+            const deadCell = row.querySelector('[data-field="dead"]');
+            const totalFeedCell = row.querySelector('[data-field="total_feed"]');
+            const cumulativeRateCell = row.querySelector('[data-field="cumulative_rate"]');
+            const dailyRateCell = row.querySelector('[data-field="daily_rate"]');
+            const cumulativeDeadCell = row.querySelector('[data-field="cumulative_dead"]');
+
+            if (!companyInCell || !mixInCell || !companyLeftCell || !mixLeftCell || !weightCell || !deadCell || !totalFeedCell || !cumulativeRateCell || !dailyRateCell || !cumulativeDeadCell) {
+                return;
+            }
+
+            const companyIn = parseFloat(getCellValue(companyInCell)) || 0;
+            const mixIn = parseFloat(getCellValue(mixInCell)) || 0;
+            const companyLeft = parseFloat(getCellValue(companyLeftCell)) || 0;
+            const mixLeft = parseFloat(getCellValue(mixLeftCell)) || 0;
+            const weight = parseFloat(getCellValue(weightCell)) || 0;
+            const dead = parseInt(getCellValue(deadCell), 10) || 0;
 
             // Total feed
             const totalFeed = companyIn + mixIn + prev_total_feed;
             prev_total_feed = totalFeed;
-            row.querySelector('[data-field="total_feed"]').textContent = totalFeed.toFixed(2);
+            totalFeedCell.textContent = totalFeed.toFixed(2);
 
             // Cumulative eat rate
             const cumulativeRate = totalFeed - companyLeft - mixLeft;
-            row.querySelector('[data-field="cumulative_rate"]').textContent = cumulativeRate.toFixed(2);
+            cumulativeRateCell.textContent = cumulativeRate.toFixed(2);
 
             // Daily eat rate
             const dailyRate = cumulativeRate - prev_cumulative_rate;
             prev_cumulative_rate = cumulativeRate;
-            row.querySelector('[data-field="daily_rate"]').textContent = dailyRate.toFixed(2);
+            dailyRateCell.textContent = dailyRate.toFixed(2);
 
             // Cumulative dead
             const cumulativeDead = dead + prev_cumulative_dead;
             prev_cumulative_dead = cumulativeDead;
-            row.querySelector('[data-field="cumulative_dead"]').textContent = cumulativeDead;
+            cumulativeDeadCell.textContent = cumulativeDead;
 
             // Weight
-            row.querySelector('[data-field="weight"]').textContent = weight.toFixed(2);
+            weightCell.textContent = weight.toFixed(2);
         }
 
         function recalcTotals() {
@@ -460,10 +505,15 @@ function parseAmount($text)
             let sumWeight = 0;
 
             document.querySelectorAll('#summaryTableBody tr').forEach(row => {
-                sumTotalFeed += parseFloat(row.querySelector('[data-field="total_feed"]').textContent) || 0;
-                sumDailyRate += parseFloat(row.querySelector('[data-field="daily_rate"]').textContent) || 0;
-                sumCumulativeDead += parseInt(row.querySelector('[data-field="cumulative_dead"]').textContent) || 0;
-                sumWeight += parseFloat(row.querySelector('[data-field="weight"]').textContent) || 0;
+                const totalFeedCell = row.querySelector('[data-field="total_feed"]');
+                const dailyRateCell = row.querySelector('[data-field="daily_rate"]');
+                const cumulativeDeadCell = row.querySelector('[data-field="cumulative_dead"]');
+                const weightCell = row.querySelector('[data-field="weight"]');
+                if (!totalFeedCell || !dailyRateCell || !cumulativeDeadCell || !weightCell) return;
+                sumTotalFeed += parseFloat(totalFeedCell.textContent) || 0;
+                sumDailyRate += parseFloat(dailyRateCell.textContent) || 0;
+                sumCumulativeDead += parseInt(cumulativeDeadCell.textContent, 10) || 0;
+                sumWeight += parseFloat(weightCell.textContent) || 0;
             });
 
             document.getElementById('sumTotalFeed').textContent = sumTotalFeed.toFixed(2);
@@ -538,7 +588,8 @@ function parseAmount($text)
 
             row.querySelectorAll('[data-field]').forEach(c => {
                 const f = c.getAttribute('data-field');
-                let txt = c.textContent.trim();
+                const input = c.querySelector('input');
+                let txt = input ? input.value.trim() : c.textContent.trim();
 
                 const numericFields = [
                     'company_in', 'mix_in', 'total_feed',
@@ -638,6 +689,10 @@ function parseAmount($text)
             });
             document.getElementById('addRow').addEventListener('click', () => {
                 const tbody = document.getElementById('summaryTableBody');
+                const noDataRow = tbody.querySelector('tr td[colspan]');
+                if (noDataRow) {
+                    noDataRow.closest('tr').remove();
+                }
                 const tr = document.createElement('tr');
 
                 const now = new Date();
@@ -680,7 +735,11 @@ function parseAmount($text)
             });
 
             document.getElementById('saveAll').addEventListener('click', () => {
-                const rows = Array.from(document.querySelectorAll('#summaryTableBody tr'));
+                const rows = Array.from(document.querySelectorAll('#summaryTableBody tr')).filter(r => r.querySelector('[data-field]'));
+                if (rows.length === 0) {
+                    alert('သိမ်းရန် ဒေတာမရှိပါ');
+                    return;
+                }
                 const payload = rows.map(getRowData);
                 fetch('save_bulk_summary.php', {
                     method: 'POST',
@@ -723,6 +782,16 @@ function parseAmount($text)
                 window.location.href = `summary.php?page=${currentPage}&farm_id=${currentFarmId}`;
             });
 
+            const downloadExcelBtn = document.getElementById('downloadExcel');
+            if (downloadExcelBtn) {
+                downloadExcelBtn.addEventListener('click', () => {
+                    const s = startInput.value;
+                    const e = endInput.value;
+                    const query = s && e ? `&start_date=${encodeURIComponent(s)}&end_date=${encodeURIComponent(e)}` : '';
+                    window.location.href = `download_excel_summary.php?page=${currentPage}&farm_id=${currentFarmId}${query}`;
+                });
+            }
+
             const pageLinks = document.querySelectorAll('.page-btn');
             pageLinks.forEach(link => {
                 if (link.href) {
@@ -745,7 +814,7 @@ function parseAmount($text)
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        page_number: currentPage,
+                        page_number: currentGlobalPage,
                         farm_id: currentFarmId
                     })
                 }).then(r => r.json()).then(res => {
@@ -780,68 +849,6 @@ function parseAmount($text)
             }
         });
     </script>
-    <script>
-        const searchBtn = document.getElementById('btnSearch');
-        const clearBtn = document.getElementById('btnClear');
-        const startInput = document.getElementById('startDate');
-        const endInput = document.getElementById('endDate');
-
-        searchBtn.addEventListener('click', () => {
-            const s = startInput.value;
-            const e = endInput.value;
-            if (s && e) {
-                window.location.href = `summary.php?page=${currentPage}&farm_id=${currentFarmId}&start_date=${s}&end_date=${e}`;
-            } else {
-                alert('ကျေးဇူးပြု၍ ရက်စွဲနှစ်ခုလုံးထည့်ပါ');
-            }
-        });
-
-        clearBtn.addEventListener('click', () => {
-            startInput.value = '';
-            endInput.value = '';
-            window.location.href = `summary.php?page=${currentPage}&farm_id=${currentFarmId}`;
-        });
-
-        const pageLinks = document.querySelectorAll('.page-btn');
-        pageLinks.forEach(link => {
-            if (link.href) {
-                const url = new URL(link.href);
-                url.searchParams.set('farm_id', currentFarmId);
-                if (startDate && endDate) {
-                    url.searchParams.set('start_date', startDate);
-                    url.searchParams.set('end_date', endDate);
-                }
-                link.href = url.toString();
-            }
-        });
-
-        const deleteAllBtn = document.getElementById('deleteAllData');
-        deleteAllBtn.addEventListener('click', () => {
-            if (!confirm('ဤစာမျက်နှာရှိ ဒေတာအားလုံးကိုဖျက်မှာသေချာပါသလား?')) return;
-
-            fetch('delete_all_summary.php', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        page_number: currentPage,
-                        farm_id: currentFarmId
-                    })
-                })
-                .then(r => r.json())
-                .then(res => {
-                    if (res && res.success) {
-                        alert('ဒေတာအားလုံးဖျက်ပြီးပါပြီ');
-                        location.href = `summary.php?page=${currentPage}&farm_id=${currentFarmId}`;
-                    } else {
-                        alert('ဖျက်ရာတွင် အမှားရှိသည်');
-                    }
-                })
-                .catch(() => alert('Network error'));
-        });
-    </script>
-
     <script>
         (function() {
             const root = document.querySelector('.sell_container');

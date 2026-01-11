@@ -59,16 +59,48 @@ $_SESSION['page_mapping'][$current_farm_id] = $page_mapping;
 
 if (isset($_POST['add_new_table'])) {
     try {
-        $max_page_sql = 'SELECT MAX(page_number) as max_page FROM pagination';
+        $submitted_farm_id = $_POST['farm_id'] ?? $current_farm_id;
+
+        // Find the next available page number that doesn't conflict globally
+        $max_page_sql = "SELECT MAX(page_number) as max_page FROM pagination";
         $max_page_result = fetchOne($max_page_sql);
         $new_page = ($max_page_result['max_page'] ?: 0) + 1;
-        $page_types = ['summary','food','sales','medicine','grand-total'];
-        foreach($page_types as $type){
-            executeQuery('INSERT INTO pagination (page_number, page_type, farm_id) VALUES (?, ?, ?)', [$new_page, $type, $current_farm_id]);
+
+        // Insert new pagination record for ALL page types for this farm
+        $page_types = ['summary', 'food', 'sales', 'medicine', 'grand-total'];
+        $success_count = 0;
+
+        foreach ($page_types as $type) {
+            try {
+                $insert_sql = "INSERT INTO pagination (page_number, page_type, farm_id) VALUES (?, ?, ?)";
+                executeQuery($insert_sql, [$new_page, $type, $submitted_farm_id]);
+                $success_count++;
+            } catch (PDOException $e) {
+                // If duplicate entry, try the next page number
+                if (strpos($e->getMessage(), '1062') !== false) {
+                    $new_page++;
+                    $insert_sql = "INSERT INTO pagination (page_number, page_type, farm_id) VALUES (?, ?, ?)";
+                    executeQuery($insert_sql, [$new_page, $type, $submitted_farm_id]);
+                    $success_count++;
+                } else {
+                    throw $e; // Re-throw if it's not a duplicate error
+                }
+            }
         }
-        header('Location: feed.php?page=' . ($total_pages + 1) . '&farm_id=' . $current_farm_id);
+
+        if ($success_count > 0) {
+            $_SESSION['success'] = "ဇယားအသစ်ထပ်ယူပြီးပါပြီ။ စာမျက်နှာအသစ်: " . $new_page . " ကို ဖိုင်အားလုံးအတွက်ဖန်တီးပြီးပါပြီ။";
+        } else {
+            $_SESSION['error'] = "ဇယားအသစ်ထပ်ယူရန် မအောင်မြင်ပါ။";
+        }
+
+        header('Location: feed.php?page=' . $new_page . '&farm_id=' . $submitted_farm_id);
         exit();
-    } catch (Exception $e) {}
+    } catch (PDOException $e) {
+        $_SESSION['error'] = 'Error creating new table: ' . $e->getMessage();
+        header('Location: feed.php?page=' . $current_page . '&farm_id=' . $current_farm_id);
+        exit();
+    }
 }
 
 // Handle delete current page (similar to sell.php)
@@ -312,21 +344,29 @@ function fmt($n){
 <script>
 const currentFarmId = <?php echo $current_farm_id; ?>;
 const currentPage = <?php echo $current_page; ?>;
+const currentGlobalPage = <?php echo $current_global_page; ?>;
 let startDate = <?php echo json_encode($start_date ?? null); ?>;
 let endDate = <?php echo json_encode($end_date ?? null); ?>;
 
 function recalcRow(row){
-  const q = parseFloat(row.querySelector('[data-field="quantity"]').textContent) || 0;
-  const p = parseFloat(row.querySelector('[data-field="unit_price"]').textContent) || 0;
+  const qtyCell = row.querySelector('[data-field="quantity"]');
+  const priceCell = row.querySelector('[data-field="unit_price"]');
+  const totalCell = row.querySelector('[data-field="total_cost"]');
+  if (!qtyCell || !priceCell || !totalCell) return;
+  const q = parseFloat(qtyCell.textContent) || 0;
+  const p = parseFloat(priceCell.textContent) || 0;
   const t = q * p;
-  row.querySelector('[data-field="total_cost"]').textContent = Math.round(t);
+  totalCell.textContent = Math.round(t);
 }
 
 function recalcTotals(){
   let sumQ = 0, sumT = 0;
   document.querySelectorAll('#feedTableBody tr').forEach(row=>{
-    const q = parseFloat(row.querySelector('[data-field="quantity"]').textContent) || 0;
-    const t = parseFloat(row.querySelector('[data-field="total_cost"]').textContent) || 0;
+    const qtyCell = row.querySelector('[data-field="quantity"]');
+    const totalCell = row.querySelector('[data-field="total_cost"]');
+    if (!qtyCell || !totalCell) return;
+    const q = parseFloat(qtyCell.textContent) || 0;
+    const t = parseFloat(totalCell.textContent) || 0;
     sumQ += q; sumT += t;
   });
   document.getElementById('sumQuantity').textContent = Math.round(sumQ);
@@ -367,12 +407,13 @@ function getRowData(row){
   const data = {};
   row.querySelectorAll('[data-field]').forEach(c=>{
     const f = c.getAttribute('data-field');
-    let v = c.textContent.trim();
+    const input = c.querySelector('input');
+    let v = input ? input.value.trim() : c.textContent.trim();
     if (['quantity','unit_price','total_cost'].includes(f)) v = parseFloat(v)||0;
     data[f] = v;
   });
   data.id = row.getAttribute('data-id') || null;
-  data.page_number = currentPage;
+  data.page_number = currentGlobalPage;
   data.farm_id = currentFarmId;
   return data;
 }
@@ -439,6 +480,8 @@ document.addEventListener('DOMContentLoaded', ()=>{
   });
   document.getElementById('addRow').addEventListener('click', ()=>{
     const tbody = document.getElementById('feedTableBody');
+    const noDataRow = tbody.querySelector('tr td[colspan]');
+    if (noDataRow) { noDataRow.closest('tr').remove(); }
     const today = new Date().toISOString().split('T')[0];
     const tr = document.createElement('tr');
     tr.innerHTML = `
@@ -456,12 +499,13 @@ document.addEventListener('DOMContentLoaded', ()=>{
     recalcTotals();
   });
   document.getElementById('saveAll').addEventListener('click', ()=>{
-    const rows = Array.from(document.querySelectorAll('#feedTableBody tr'));
+    const rows = Array.from(document.querySelectorAll('#feedTableBody tr')).filter(r=>r.querySelector('[data-field]'));
+    if (rows.length === 0){ alert('သိမ်းရန် ဒေတာမရှိပါ'); return; }
     const payload = rows.map(getRowData);
     fetch('save_bulk_feed.php',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({feeds: payload, farm_id: currentFarmId, page_number: currentPage})
+      body: JSON.stringify({feeds: payload, farm_id: currentFarmId, page_number: currentGlobalPage})
     })
     .then(r=>r.json())
     .then(res=>{ if(res && res.success){ alert('ဒေတာအားလုံးသိမ်းပြီး'); location.href = `feed.php?page=${currentPage}&farm_id=${currentFarmId}${startDate&&endDate?`&start_date=${startDate}&end_date=${endDate}`:''}`; } else { alert('သိမ်းရာတွင် အမှားရှိသည်'); } })
@@ -484,6 +528,16 @@ document.addEventListener('DOMContentLoaded', ()=>{
     window.location.href = `feed.php?page=${currentPage}&farm_id=${currentFarmId}`;
   });
 
+  const downloadExcelBtn = document.getElementById('downloadExcel');
+  if (downloadExcelBtn) {
+    downloadExcelBtn.addEventListener('click', ()=>{
+      const s = startInput.value;
+      const e = endInput.value;
+      const query = s && e ? `&start_date=${encodeURIComponent(s)}&end_date=${encodeURIComponent(e)}` : '';
+      window.location.href = `download_excel_feed.php?page=${currentPage}&farm_id=${currentFarmId}${query}`;
+    });
+  }
+
   const pageLinks = document.querySelectorAll('.page-btn');
   pageLinks.forEach(link=>{
     if (link.href){ const url = new URL(link.href); url.searchParams.set('farm_id', currentFarmId); if (startDate && endDate){ url.searchParams.set('start_date', startDate); url.searchParams.set('end_date', endDate);} link.href = url.toString(); }
@@ -495,19 +549,12 @@ document.addEventListener('DOMContentLoaded', ()=>{
     fetch('delete_all_feed.php',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ page_number: currentPage, farm_id: currentFarmId })
+      body: JSON.stringify({ page_number: currentGlobalPage, farm_id: currentFarmId })
     })
     .then(r=>r.json())
     .then(res=>{ if(res && res.success){ alert('ဒေတာအားလုံးဖျက်ပြီးပါပြီ'); location.href = `feed.php?page=${currentPage}&farm_id=${currentFarmId}`; } else { alert('ဖျက်ရာတွင် အမှားရှိသည်'); } })
     .catch(()=>alert('Network error'));
   });
-
-  const downloadExcelBtn = document.getElementById('downloadExcel');
-  if (downloadExcelBtn) {
-    downloadExcelBtn.addEventListener('click', () => {
-      window.location.href = `download_excel_feed.php?page=${currentPage}&farm_id=${currentFarmId}${startDate && endDate ? `&start_date=${startDate}&end_date=${endDate}` : ''}`;
-    });
-  }
 });
 </script>
 <script>

@@ -23,14 +23,24 @@ $_SESSION['page_mapping'][$current_farm_id] = $page_mapping;
 
 if (isset($_POST['add_new_table'])) {
   try {
-    $max_page_sql = 'SELECT MAX(page_number) as max_page FROM pagination';
-    $max_page_result = fetchOne($max_page_sql);
-    $new_page = ($max_page_result['max_page'] ?: 0) + 1;
-    $page_types = ['summary','food','sales','medicine','grand-total'];
-    foreach($page_types as $type){ executeQuery('INSERT INTO pagination (page_number, page_type, farm_id) VALUES (?, ?, ?)', [$new_page, $type, $current_farm_id]); }
-    header('Location: grand_total.php?page=' . ($total_pages + 1) . '&farm_id=' . $current_farm_id);
+    $submitted_farm_id = $_POST['farm_id'] ?? $current_farm_id;
+    ensurePaginationAutoIncrement();
+    $new_page = getNextPaginationPageNumber();
+    ensurePaginationPageTypes($new_page, $submitted_farm_id);
+
+    $pages_result = fetchAll('SELECT DISTINCT page_number FROM pagination WHERE farm_id = ? ORDER BY page_number ASC', [$submitted_farm_id]);
+    $global_pages = array_column($pages_result, 'page_number');
+    $display_index = array_search($new_page, $global_pages, true);
+    $display_page = ($display_index === false) ? ($total_pages + 1) : ($display_index + 1);
+
+    $_SESSION['success'] = 'ဇယားအသစ်ထပ်ယူပြီးပါပြီ။';
+    header('Location: grand-total.php?page=' . $display_page . '&farm_id=' . $submitted_farm_id);
     exit();
-  } catch (Exception $e) {}
+  } catch (Exception $e) {
+    $_SESSION['error'] = 'Error creating new table: ' . $e->getMessage();
+    header('Location: grand-total.php?page=' . $current_page . '&farm_id=' . $current_farm_id);
+    exit();
+  }
 }
 
 if (isset($_POST['delete_current_page'])) {
@@ -38,14 +48,23 @@ if (isset($_POST['delete_current_page'])) {
     $current_page_to_delete = $_POST['page'] ?? 1;
     $farm_id_to_delete = $_POST['farm_id'] ?? $current_farm_id;
     $global_page_to_delete = $_POST['global_page'] ?? $current_global_page;
-    if ($current_page_to_delete == 1) { $_SESSION['error'] = 'စာမျက်နှာ ၁ ကိုဖျက်လို့မရပါ'; header('Location: grand_total.php?page=' . $current_page_to_delete . '&farm_id=' . $farm_id_to_delete); exit(); }
-    if (!$global_page_to_delete) { $_SESSION['error'] = 'စာမျက်နှာရှာမတွေ့ပါ'; header('Location: grand_total.php?page=1&farm_id=' . $farm_id_to_delete); exit(); }
+    if ($current_page_to_delete == 1) { $_SESSION['error'] = 'စာမျက်နှာ ၁ ကိုဖျက်လို့မရပါ'; header('Location: grand-total.php?page=' . $current_page_to_delete . '&farm_id=' . $farm_id_to_delete); exit(); }
+    if (!$global_page_to_delete) { $_SESSION['error'] = 'စာမျက်နှာရှာမတွေ့ပါ'; header('Location: grand-total.php?page=1&farm_id=' . $farm_id_to_delete); exit(); }
     $page_types = ['summary','food','sales','medicine','grand-total']; $deleted_count = 0;
     foreach ($page_types as $type){ $delete_sql = 'DELETE FROM pagination WHERE page_type = ? AND page_number = ? AND farm_id = ?'; $stmt = $pdo->prepare($delete_sql); $stmt->execute([$type, $global_page_to_delete, $farm_id_to_delete]); $deleted_count += $stmt->rowCount(); }
     $stmt2 = $pdo->prepare('DELETE FROM grand_total WHERE page_number = ? AND farm_id = ?'); $stmt2->execute([$global_page_to_delete, $farm_id_to_delete]);
     if ($deleted_count > 0) $_SESSION['success'] = 'စာမျက်နှာ ' . $current_page_to_delete . ' ကိုဖျက်ပြီးပါပြီ'; else $_SESSION['error'] = 'စာမျက်နှာဖျက်ရန် မအောင်မြင်ပါ';
-    header('Location: grand_total.php?page=1&farm_id=' . $farm_id_to_delete); exit();
-  } catch (Exception $e) { $_SESSION['error'] = 'Error deleting page: ' . $e->getMessage(); header('Location: grand_total.php?page=' . (isset($_POST['page']) ? intval($_POST['page']) : 1) . '&farm_id=' . $current_farm_id); exit(); }
+    header('Location: grand-total.php?page=1&farm_id=' . $farm_id_to_delete); exit();
+  } catch (Exception $e) { $_SESSION['error'] = 'Error deleting page: ' . $e->getMessage(); header('Location: grand-total.php?page=' . (isset($_POST['page']) ? intval($_POST['page']) : 1) . '&farm_id=' . $current_farm_id); exit(); }
+}
+
+if (isset($_SESSION['success'])) {
+  echo '<div class="alert alert-success">' . $_SESSION['success'] . '</div>';
+  unset($_SESSION['success']);
+}
+if (isset($_SESSION['error'])) {
+  echo '<div class="alert alert-error">' . $_SESSION['error'] . '</div>';
+  unset($_SESSION['error']);
 }
 
 $table_check = fetchOne("SHOW TABLES LIKE 'grand_total'");
@@ -57,21 +76,23 @@ if (!$table_check) {
     name VARCHAR(255) DEFAULT NULL,
     type VARCHAR(100) DEFAULT NULL,
     quantity INT(11) DEFAULT 0,
-    weight DECIMAL(12,2) DEFAULT 0,
-    sold DECIMAL(12,2) DEFAULT 0,
+    sold DECIMAL(12,2) DEFAULT 0.00,
     dead INT(11) DEFAULT 0,
     excess_deficit VARCHAR(50) DEFAULT NULL,
-    finished_weight DECIMAL(12,2) DEFAULT 0,
-    feed_weight DECIMAL(12,2) DEFAULT 0,
+    finished_weight DECIMAL(12,2) DEFAULT 0.00,
+    feed_weight DECIMAL(12,2) DEFAULT 0.00,
     company VARCHAR(100) DEFAULT NULL,
     mixed VARCHAR(100) DEFAULT NULL,
     feed_bag INT(11) DEFAULT 0,
-    medicine DECIMAL(12,2) DEFAULT 0,
-    feed DECIMAL(12,2) DEFAULT 0,
-    charcoal DECIMAL(12,2) DEFAULT 0,
-    bran DECIMAL(12,2) DEFAULT 0,
-    lime DECIMAL(12,2) DEFAULT 0,
-    tfcr DECIMAL(12,2) DEFAULT 0,
+    used_feed_bags INT(11) NOT NULL DEFAULT 0,
+    feed_balance INT(11) NOT NULL DEFAULT 0,
+    medicine DECIMAL(12,2) DEFAULT 0.00,
+    feed DECIMAL(12,2) DEFAULT 0.00,
+    other_cost DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    avg_weight DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    mortality_rate DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    fcr DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    tfcr DECIMAL(12,2) DEFAULT 0.00,
     comments TEXT DEFAULT NULL,
     has_comment TINYINT(1) NOT NULL DEFAULT 0,
     comment_read TINYINT(1) NOT NULL DEFAULT 0,
@@ -96,7 +117,7 @@ $start_date = $_GET['start_date'] ?? null; $end_date = $_GET['end_date'] ?? null
 $sql = 'SELECT * FROM grand_total WHERE page_number = ? AND farm_id = ?';
 $params = [$current_global_page, $current_farm_id];
 if ($start_date && $end_date){ $sql .= ' AND date BETWEEN ? AND ?'; $params[]=$start_date; $params[]=$end_date; }
-$sql .= ' ORDER BY serial_no ASC';
+$sql .= ' ORDER BY id ASC';
 $grand_total_data = fetchAll($sql, $params);
 
 function fmt($n){ if ($n === null || $n === '') return '0'; $s = (string)$n; if (strpos($s, '.') !== false) { $s = rtrim(rtrim($s, '0'), '.'); } return $s === '' ? '0' : $s; }
@@ -121,10 +142,12 @@ function fmt($n){ if ($n === null || $n === '') return '0'; $s = (string)$n; if 
         <div class="header-actions">
           <button class="btn btn-primary" id="addRow"><i class="fas fa-plus"></i> rowအသစ်ထပ်ယူရန်</button>
           <button class="btn btn-secondary" id="saveAll"><i class="fas fa-save"></i> Save-all</button>
+          
           <form method="POST" style="display:inline;">
             <input type="hidden" name="farm_id" value="<?php echo $current_farm_id; ?>">
             <button type="submit" name="add_new_table" class="btn btn-primary"><i class="fas fa-plus"></i> ဇယားအသစ်ထပ်ယူရန်</button>
           </form>
+          <button class="btn btn-secondary" id="downloadExcel"><i class="fas fa-file-excel"></i> Excel Download</button>
           <?php if ($current_page > 1): ?>
           <form method="POST" style="display:inline;" onsubmit="return confirmDeletePage();">
             <input type="hidden" name="page" value="<?php echo $current_page; ?>">
@@ -158,26 +181,28 @@ function fmt($n){ if ($n === null || $n === '') return '0'; $s = (string)$n; if 
         <?php include('../pagination.php'); ?>
         <table id="grandTotalTable">
           <thead>
-            <tr style="height: 100px;"><th colspan="22">Grand Total - <?php echo htmlspecialchars($current_farm['farm_username'] ?? 'Default Farm'); ?> - ခြံ(<?php echo $current_farm['farm_no'] ?? 1; ?>) - စာမျက်နှာ <?php echo $current_page; ?></th></tr>
+            <tr style="height: 100px;"><th colspan="24">Grand Total - <?php echo htmlspecialchars($current_farm['farm_username'] ?? 'Default Farm'); ?> - ခြံ(<?php echo $current_farm['farm_no'] ?? 1; ?>) - စာမျက်နှာ <?php echo $current_page; ?></th></tr>
             <tr style="height: 90px;">
               <th>စဉ်</th>
               <th>အမည်</th>
               <th>အမျိုးအစား</th>
               <th>အကောင်ရေ</th>
-              <th>ဝိတ်တန်း</th>
               <th>ရောင်း</th>
               <th>သေ</th>
-              <th>ပို/လို</th>
+              <th>ကြက် ပို/လို</th>
               <th>ကုန်ချိန်</th>
               <th>အစာချိန်</th>
               <th>ကုမ္ပဏီ</th>
               <th>စပ်</th>
-              <th>အစာအိပ်</th>
+              <th>အစာအိတ်</th>
+              <th>ကျွေးပြီး အိတ်</th>
+              <th>အစာ ပို/လို</th>
               <th>ဆေး</th>
               <th>အစာ</th>
-              <th>မီးသွေး</th>
-              <th>ဖွဲ</th>
-              <th>ထုံး</th>
+              <th>အထွေထွေစရိတ်</th>
+              <th>ဝိတ်တန်း</th>
+              <th>အသေရာခိုင်နှုန်း</th>
+              <th>FCR</th>
               <th>TFCR</th>
                  <th>ပြင်ရန်</th>  <!-- New column -->
         <th>ဖျက်ရန်</th>  <!-- New column -->
@@ -186,13 +211,13 @@ function fmt($n){ if ($n === null || $n === '') return '0'; $s = (string)$n; if 
           </thead>
           <tbody id="grandTotalTableBody">
     <?php if ($grand_total_data && count($grand_total_data) > 0): ?>
+      <?php $i = 1; ?>
         <?php foreach ($grand_total_data as $row): ?>
-            <tr data-id="<?php echo $row['id']; ?>">
-                <td class="editable" data-field="serial_no"><?php echo fmt($row['serial_no']); ?></td>
+               <tr data-id="<?php echo $row['id']; ?>">
+               <td class="serial-cell"><?php echo $i++; ?></td>
                 <td class="editable" data-field="name"><?php echo htmlspecialchars($row['name'] ?? ''); ?></td>
                 <td class="editable" data-field="type"><?php echo htmlspecialchars($row['type'] ?? ''); ?></td>
                 <td class="editable" data-field="quantity"><?php echo fmt($row['quantity']); ?></td>
-                <td class="editable" data-field="weight"><?php echo fmt($row['weight']); ?></td>
                 <td class="editable" data-field="sold"><?php echo fmt($row['sold']); ?></td>
                 <td class="editable" data-field="dead"><?php echo fmt($row['dead']); ?></td>
                 <td class="editable" data-field="excess_deficit"><?php echo htmlspecialchars($row['excess_deficit'] ?? ''); ?></td>
@@ -201,11 +226,14 @@ function fmt($n){ if ($n === null || $n === '') return '0'; $s = (string)$n; if 
                 <td class="editable" data-field="company"><?php echo htmlspecialchars($row['company'] ?? ''); ?></td>
                 <td class="editable" data-field="mixed"><?php echo htmlspecialchars($row['mixed'] ?? ''); ?></td>
                 <td class="editable" data-field="feed_bag"><?php echo fmt($row['feed_bag']); ?></td>
+                <td class="editable" data-field="used_feed_bags"><?php echo fmt($row['used_feed_bags']); ?></td>
+                <td class="editable" data-field="feed_balance"><?php echo fmt($row['feed_balance']); ?></td>
                 <td class="editable" data-field="medicine"><?php echo fmt($row['medicine']); ?></td>
                 <td class="editable" data-field="feed"><?php echo fmt($row['feed']); ?></td>
-                <td class="editable" data-field="charcoal"><?php echo fmt($row['charcoal']); ?></td>
-                <td class="editable" data-field="bran"><?php echo fmt($row['bran']); ?></td>
-                <td class="editable" data-field="lime"><?php echo fmt($row['lime']); ?></td>
+                <td class="editable" data-field="other_cost"><?php echo fmt($row['other_cost']); ?></td>
+                <td class="editable" data-field="avg_weight"><?php echo fmt($row['avg_weight']); ?></td>
+                <td class="editable" data-field="mortality_rate"><?php echo fmt($row['mortality_rate']); ?></td>
+                <td class="editable" data-field="fcr"><?php echo fmt($row['fcr']); ?></td>
                 <td class="editable" data-field="tfcr"><?php echo fmt($row['tfcr']); ?></td>
                 
                 <!-- ပြင်ရန် Button -->
@@ -250,7 +278,7 @@ function fmt($n){ if ($n === null || $n === '') return '0'; $s = (string)$n; if 
         <?php endforeach; ?>
     <?php else: ?>
         <tr>
-            <td colspan="22" style="text-align:center;padding:20px;">ဒေတာမရှိပါ။ row အသစ်ထပ်ယူပါ။</td>
+            <td colspan="24" style="text-align:center;padding:20px;">ဒေတာမရှိပါ။ row အသစ်ထပ်ယူပါ။</td>
         </tr>
     <?php endif; ?>
 </tbody>
@@ -282,13 +310,23 @@ function markRowSaved(row){ const btn = row.querySelector('.save-btn'); if (!btn
 function finishEditing(cell){ const el = cell.querySelector('input'); const val = el ? el.value : ''; cell.textContent = val; const row = cell.closest('tr'); markRowPending(row); }
 function cancelEditing(cell){ const el = cell.querySelector('input'); cell.textContent = el ? el.defaultValue : cell.textContent; }
 
+function reindexSerials(){
+  const rows = document.querySelectorAll('#grandTotalTableBody tr');
+  let i = 1;
+  rows.forEach(row => {
+    const cell = row.querySelector('.serial-cell');
+    if (!cell) return;
+    cell.textContent = i++;
+  });
+}
+
 function getRowData(row){
   const data = {};
   row.querySelectorAll('[data-field]').forEach(c=>{
     const f = c.getAttribute('data-field');
     let txt = c.textContent.trim();
-    if (['serial_no','quantity','dead','feed_bag'].includes(f)) { data[f] = parseInt(txt) || 0; }
-    else if (['weight','sold','finished_weight','feed_weight','medicine','feed','charcoal','bran','lime','tfcr'].includes(f)) { data[f] = parseFloat(txt) || 0; }
+    if (['quantity','dead','feed_bag','used_feed_bags','feed_balance'].includes(f)) { data[f] = parseInt(txt) || 0; }
+    else if (['sold','finished_weight','feed_weight','medicine','feed','other_cost','avg_weight','mortality_rate','fcr','tfcr'].includes(f)) { data[f] = parseFloat(txt) || 0; }
     else { data[f] = txt; }
   });
   data.id = row.getAttribute('data-id') || null; data.page_number = currentGlobalPage; data.farm_id = currentFarmId;
@@ -303,7 +341,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
     const btnSave = e.target.closest('.save-btn');
     if (btnSave){ const row = btnSave.closest('tr'); sendRow(row).then(res=>{ if(res && res.success){ if(res.id) row.setAttribute('data-id', res.id); markRowSaved(row); alert('အောင်မြင်စွာသိမ်းဆည်းပြီး'); } else { alert('သိမ်းရာတွင် အမှားရှိသည်'); } }).catch(()=>alert('Network error')); }
     const btnDel = e.target.closest('.btn-delete');
-    if (btnDel){ const row = btnDel.closest('tr'); const id = row.getAttribute('data-id'); if (!id){ row.remove(); return; } if (!confirm('ဤအချက်အလက်ကိုဖျက်မှာသေချာပါသလား?')) return; fetch('delete_grand_total.php',{ method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ id }) }).then(r=>r.json()).then(res=>{ if(res && res.success){ row.remove(); alert('ဖျက်ပြီးပါပြီ'); } else { alert('ဖျက်ရာတွင် အမှားရှိသည်'); } }).catch(()=>alert('Network error')); }
+    if (btnDel){ const row = btnDel.closest('tr'); const id = row.getAttribute('data-id'); if (!id){ row.remove(); reindexSerials(); return; } if (!confirm('ဤအချက်အလက်ကိုဖျက်မှာသေချာပါသလား?')) return; fetch('delete_grand_total.php',{ method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ id }) }).then(r=>r.json()).then(res=>{ if(res && res.success){ row.remove(); reindexSerials(); alert('ဖျက်ပြီးပါပြီ'); } else { alert('ဖျက်ရာတွင် အမှားရှိသည်'); } }).catch(()=>alert('Network error')); }
   });
 document.getElementById('addRow').addEventListener('click', ()=>{
     const tbody = document.getElementById('grandTotalTableBody'); 
@@ -316,11 +354,10 @@ document.getElementById('addRow').addEventListener('click', ()=>{
     }
     
     tr.innerHTML = `
-        <td class="editable" data-field="serial_no">0</td>
+        <td class="serial-cell">${tbody.querySelectorAll('tr').length + 1}</td>
         <td class="editable" data-field="name"></td>
         <td class="editable" data-field="type"></td>
         <td class="editable" data-field="quantity">0</td>
-        <td class="editable" data-field="weight">0</td>
         <td class="editable" data-field="sold">0</td>
         <td class="editable" data-field="dead">0</td>
         <td class="editable" data-field="excess_deficit"></td>
@@ -329,11 +366,14 @@ document.getElementById('addRow').addEventListener('click', ()=>{
         <td class="editable" data-field="company"></td>
         <td class="editable" data-field="mixed"></td>
         <td class="editable" data-field="feed_bag">0</td>
+        <td class="editable" data-field="used_feed_bags">0</td>
+        <td class="editable" data-field="feed_balance">0</td>
         <td class="editable" data-field="medicine">0</td>
         <td class="editable" data-field="feed">0</td>
-        <td class="editable" data-field="charcoal">0</td>
-        <td class="editable" data-field="bran">0</td>
-        <td class="editable" data-field="lime">0</td>
+        <td class="editable" data-field="other_cost">0</td>
+        <td class="editable" data-field="avg_weight">0</td>
+        <td class="editable" data-field="mortality_rate">0</td>
+        <td class="editable" data-field="fcr">0</td>
         <td class="editable" data-field="tfcr">0</td>
         <td><button class="save-btn pending">သိမ်းရန်</button></td>
         <td><button class="btn-delete">ဖျက်ရန်</button></td>
@@ -346,64 +386,26 @@ document.getElementById('addRow').addEventListener('click', ()=>{
         </td>
     `; 
     tbody.appendChild(tr);
+    reindexSerials();
 });
 
 // Save button event listener
-document.getElementById('grandTotalTableBody').addEventListener('click', (e)=>{
-    const btnSave = e.target.closest('.save-btn');
-    if (btnSave){ 
-        const row = btnSave.closest('tr'); 
-        sendRow(row).then(res=>{ 
-            if(res && res.success){ 
-                if(res.id) row.setAttribute('data-id', res.id); 
-                markRowSaved(row); 
-                alert('အောင်မြင်စွာသိမ်းဆည်းပြီး'); 
-            } else { 
-                alert('သိမ်းရာတွင် အမှားရှိသည်'); 
-            } 
-        }).catch(()=>alert('Network error')); 
-    }
-    
-    // Delete button event listener
-    const btnDel = e.target.closest('.btn-delete');
-    if (btnDel){ 
-        const row = btnDel.closest('tr'); 
-        const id = row.getAttribute('data-id'); 
-        if (!id){ 
-            row.remove(); 
-            return; 
-        } 
-        if (!confirm('ဤအချက်အလက်ကိုဖျက်မှာသေချာပါသလား?')) return; 
-        fetch('delete_grand_total.php',{ 
-            method:'POST', 
-            headers:{'Content-Type':'application/json'}, 
-            body: JSON.stringify({ id }) 
-        }).then(r=>r.json()).then(res=>{ 
-            if(res && res.success){ 
-                row.remove(); 
-                alert('ဖျက်ပြီးပါပြီ'); 
-                
-                // If no rows left, show "no data" message
-                if (document.querySelectorAll('#grandTotalTableBody tr').length === 0) {
-                    const tbody = document.getElementById('grandTotalTableBody');
-                    tbody.innerHTML = '<tr><td colspan="22" style="text-align:center;padding:20px;">ဒေတာမရှိပါ။ row အသစ်ထပ်ယူပါ။</td></tr>';
-                }
-            } else { 
-                alert('ဖျက်ရာတွင် အမှားရှိသည်'); 
-            } 
-        }).catch(()=>alert('Network error')); 
-    }
-});
-
-  document.getElementById('saveAll').addEventListener('click', ()=>{ const rows = Array.from(document.querySelectorAll('#grandTotalTableBody tr')); const payload = rows.map(getRowData); fetch('save_bulk_grand_total.php',{ method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({items: payload, farm_id: currentFarmId, page_number: currentGlobalPage}) }).then(r=>r.json()).then(res=>{ if(res && res.success){ alert('ဒေတာအားလုံးသိမ်းပြီး'); location.href = `grand_total.php?page=${currentPage}&farm_id=${currentFarmId}${startDate&&endDate?`&start_date=${startDate}&end_date=${endDate}`:''}`; } else { alert(res && res.error ? ('သိမ်းရာတွင် အမှားရှိသည်: ' + res.error) : 'သိမ်းရာတွင် အမှားရှိသည်'); } }).catch(()=>alert('Network error')); });
+  document.getElementById('saveAll').addEventListener('click', ()=>{ const rows = Array.from(document.querySelectorAll('#grandTotalTableBody tr')); const payload = rows.map(getRowData); fetch('save_bulk_grand_total.php',{ method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({items: payload, farm_id: currentFarmId, page_number: currentGlobalPage}) }).then(r=>r.json()).then(res=>{ if(res && res.success){ alert('ဒေတာအားလုံးသိမ်းပြီး'); location.href = `grand-total.php?page=${currentPage}&farm_id=${currentFarmId}${startDate&&endDate?`&start_date=${startDate}&end_date=${endDate}`:''}`; } else { alert(res && res.error ? ('သိမ်းရာတွင် အမှားရှိသည်: ' + res.error) : 'သိမ်းရာတွင် အမှားရှိသည်'); } }).catch(()=>alert('Network error')); });
   
   const searchBtn = document.getElementById('btnSearch'); const clearBtn = document.getElementById('btnClear'); const startInput = document.getElementById('startDate'); const endInput = document.getElementById('endDate');
-  searchBtn.addEventListener('click', ()=>{ const s = startInput.value; const e = endInput.value; if (s && e){ window.location.href = `grand_total.php?page=${currentPage}&farm_id=${currentFarmId}&start_date=${s}&end_date=${e}`; } else { alert('ကျေးဇူးပြု၍ ရက်စွဲနှစ်ခုလုံးထည့်ပါ'); } });
-  clearBtn.addEventListener('click', ()=>{ startInput.value=''; endInput.value=''; window.location.href = `grand_total.php?page=${currentPage}&farm_id=${currentFarmId}`; });
+  searchBtn.addEventListener('click', ()=>{ const s = startInput.value; const e = endInput.value; if (s && e){ window.location.href = `grand-total.php?page=${currentPage}&farm_id=${currentFarmId}&start_date=${s}&end_date=${e}`; } else { alert('ကျေးဇူးပြု၍ ရက်စွဲနှစ်ခုလုံးထည့်ပါ'); } });
+  clearBtn.addEventListener('click', ()=>{ startInput.value=''; endInput.value=''; window.location.href = `grand-total.php?page=${currentPage}&farm_id=${currentFarmId}`; });
 
   const pageLinks = document.querySelectorAll('.page-btn'); pageLinks.forEach(link=>{ if (link.href){ const url = new URL(link.href); url.searchParams.set('farm_id', currentFarmId); if (startDate && endDate){ url.searchParams.set('start_date', startDate); url.searchParams.set('end_date', endDate);} link.href = url.toString(); } });
 
-  const deleteAllBtn = document.getElementById('deleteAllData'); deleteAllBtn.addEventListener('click', ()=>{ if (!confirm('ဤစာမျက်နှာရှိ ဒေတာအားလုံးကိုဖျက်မှာသေချာပါသလား?')) return; fetch('delete_all_grand_total.php',{ method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ page_number: currentPage, farm_id: currentFarmId }) }).then(r=>r.json()).then(res=>{ if(res && res.success){ alert('ဒေတာအားလုံးဖျက်ပြီးပါပြီ'); location.href = `grand_total.php?page=${currentPage}&farm_id=${currentFarmId}`; } else { alert('ဖျက်ရာတွင် အမှားရှိသည်'); } }).catch(()=>alert('Network error')); });
+  const deleteAllBtn = document.getElementById('deleteAllData'); deleteAllBtn.addEventListener('click', ()=>{ if (!confirm('ဤစာမျက်နှာရှိ ဒေတာအားလုံးကိုဖျက်မှာသေချာပါသလား?')) return; fetch('delete_all_grand_total.php',{ method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ page_number: currentPage, farm_id: currentFarmId }) }).then(r=>r.json()).then(res=>{ if(res && res.success){ alert('ဒေတာအားလုံးဖျက်ပြီးပါပြီ'); location.href = `grand-total.php?page=${currentPage}&farm_id=${currentFarmId}`; } else { alert('ဖျက်ရာတွင် အမှားရှိသည်'); } }).catch(()=>alert('Network error')); });
+
+  const downloadExcelBtn = document.getElementById('downloadExcel');
+  if (downloadExcelBtn) {
+    downloadExcelBtn.addEventListener('click', () => {
+      window.location.href = `download_excel_grand_total.php?page=${currentPage}&farm_id=${currentFarmId}${startDate && endDate ? `&start_date=${startDate}&end_date=${endDate}` : ''}`;
+    });
+  }
 
   const pagWrap = document.querySelector('.pagination-wrap');
   if (pagWrap){

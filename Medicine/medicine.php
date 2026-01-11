@@ -23,14 +23,48 @@ $_SESSION['page_mapping'][$current_farm_id] = $page_mapping;
 
 if (isset($_POST['add_new_table'])) {
   try {
-    $max_page_sql = 'SELECT MAX(page_number) as max_page FROM pagination';
+    $submitted_farm_id = $_POST['farm_id'] ?? $current_farm_id;
+
+    // Find the next available page number that doesn't conflict globally
+    $max_page_sql = "SELECT MAX(page_number) as max_page FROM pagination";
     $max_page_result = fetchOne($max_page_sql);
     $new_page = ($max_page_result['max_page'] ?: 0) + 1;
-    $page_types = ['summary','food','sales','medicine','grand-total'];
-    foreach($page_types as $type){ executeQuery('INSERT INTO pagination (page_number, page_type, farm_id) VALUES (?, ?, ?)', [$new_page, $type, $current_farm_id]); }
-    header('Location: medicine.php?page=' . ($total_pages + 1) . '&farm_id=' . $current_farm_id);
+
+    // Insert new pagination record for ALL page types for this farm
+    $page_types = ['summary', 'food', 'sales', 'medicine', 'grand-total'];
+    $success_count = 0;
+
+    foreach ($page_types as $type) {
+      try {
+        $insert_sql = "INSERT INTO pagination (page_number, page_type, farm_id) VALUES (?, ?, ?)";
+        executeQuery($insert_sql, [$new_page, $type, $submitted_farm_id]);
+        $success_count++;
+      } catch (PDOException $e) {
+        // If duplicate entry, try the next page number
+        if (strpos($e->getMessage(), '1062') !== false) {
+          $new_page++;
+          $insert_sql = "INSERT INTO pagination (page_number, page_type, farm_id) VALUES (?, ?, ?)";
+          executeQuery($insert_sql, [$new_page, $type, $submitted_farm_id]);
+          $success_count++;
+        } else {
+          throw $e; // Re-throw if it's not a duplicate error
+        }
+      }
+    }
+
+    if ($success_count > 0) {
+      $_SESSION['success'] = "ဇယားအသစ်ထပ်ယူပြီးပါပြီ။ စာမျက်နှာအသစ်: " . $new_page . " ကို ဖိုင်အားလုံးအတွက်ဖန်တီးပြီးပါပြီ။";
+    } else {
+      $_SESSION['error'] = "ဇယားအသစ်ထပ်ယူရန် မအောင်မြင်ပါ။";
+    }
+
+    header('Location: medicine.php?page=' . $new_page . '&farm_id=' . $submitted_farm_id);
     exit();
-  } catch (Exception $e) {}
+  } catch (PDOException $e) {
+    $_SESSION['error'] = 'Error creating new table: ' . $e->getMessage();
+    header('Location: medicine.php?page=' . $current_page . '&farm_id=' . $current_farm_id);
+    exit();
+  }
 }
 
 if (isset($_POST['delete_current_page'])) {
@@ -232,7 +266,9 @@ let startDate = <?php echo json_encode($start_date ?? null); ?>;
 let endDate = <?php echo json_encode($end_date ?? null); ?>;
 
 function recalcRow(row){
-  const doseText = row.querySelector('[data-field="dose_amount"]').textContent || '';
+  const doseCell = row.querySelector('[data-field="dose_amount"]');
+  if (!doseCell) return;
+  const doseText = doseCell.textContent || '';
   const dose = parseFloat(doseText) || 0;
   const doseUnit = (doseText.match(/\b(cc|g|kg)\b/i)||[])[0]||'';
   const freq = parseFloat(row.querySelector('[data-field="frequency"]').textContent) || 0;
@@ -246,8 +282,11 @@ function recalcRow(row){
 function recalcTotals(){
   let sumUsed = 0, sumTotal = 0;
   document.querySelectorAll('#medicineTableBody tr').forEach(row=>{
-    const u = parseFloat(row.querySelector('[data-field="total_used"]').textContent) || 0;
-    const t = parseFloat(row.querySelector('[data-field="total_cost"]').textContent) || 0;
+    const usedCell = row.querySelector('[data-field="total_used"]');
+    const costCell = row.querySelector('[data-field="total_cost"]');
+    if (!usedCell || !costCell) return;
+    const u = parseFloat(usedCell.textContent) || 0;
+    const t = parseFloat(costCell.textContent) || 0;
     sumUsed += u; sumTotal += t;
   });
   document.getElementById('sumUsed').textContent = Math.round(sumUsed);
@@ -275,7 +314,8 @@ function getRowData(row){
   const data = {};
   row.querySelectorAll('[data-field]').forEach(c=>{
     const f = c.getAttribute('data-field');
-    let txt = c.textContent.trim();
+    const input = c.querySelector('input');
+    let txt = input ? input.value.trim() : c.textContent.trim();
     if (f === 'dose_amount'){ const m = txt.match(/\b(cc|g|kg)\b/i); data['dose_unit'] = m ? m[0].toLowerCase() : null; data['dose_amount'] = parseFloat(txt)||0; }
     else if (f === 'total_used'){ const m = txt.match(/\b(cc|g|kg)\b/i); data['total_used_unit'] = m ? m[0].toLowerCase() : null; data['total_used'] = parseFloat(txt)||0; }
     else if (['frequency','unit_price','total_cost'].includes(f)) { data[f] = parseFloat(txt)||0; }
@@ -296,7 +336,9 @@ document.addEventListener('DOMContentLoaded', ()=>{
     if (btnDel){ const row = btnDel.closest('tr'); const id = row.getAttribute('data-id'); if (!id){ row.remove(); recalcTotals(); return; } if (!confirm('ဤအချက်အလက်ကိုဖျက်မှာသေချာပါသလား?')) return; fetch('delete_medicine.php',{ method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ id }) }).then(r=>r.json()).then(res=>{ if(res && res.success){ row.remove(); recalcTotals(); alert('ဖျက်ပြီးပါပြီ'); } else { alert('ဖျက်ရာတွင် အမှားရှိသည်'); } }).catch(()=>alert('Network error')); }
   });
   document.getElementById('addRow').addEventListener('click', ()=>{
-    const tbody = document.getElementById('medicineTableBody'); const tr = document.createElement('tr'); const today = new Date().toISOString().split('T')[0];
+    const tbody = document.getElementById('medicineTableBody'); const tr = document.createElement('tr');
+    const noDataRow = tbody.querySelector('tr td[colspan]');
+    if (noDataRow) { noDataRow.closest('tr').remove(); }
     tr.innerHTML = `
       <td class="editable" data-field="age_group"></td>
       <td class="editable" data-field="medicine_name"></td>
@@ -310,7 +352,12 @@ document.addEventListener('DOMContentLoaded', ()=>{
       <td class="comment-cell"><div class="comment-container"><button class="btn-comment" data-id=""><i class="fa-regular fa-comment"></i></button></div></td>
     `; tbody.appendChild(tr); recalcTotals();
   });
-  document.getElementById('saveAll').addEventListener('click', ()=>{ const rows = Array.from(document.querySelectorAll('#medicineTableBody tr')); const payload = rows.map(getRowData); fetch('save_bulk_medicine.php',{ method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({items: payload, farm_id: currentFarmId, page_number: currentGlobalPage}) }).then(r=>r.json()).then(res=>{ if(res && res.success){ alert('ဒေတာအားလုံးသိမ်းပြီး'); location.href = `medicine.php?page=${currentPage}&farm_id=${currentFarmId}${startDate&&endDate?`&start_date=${startDate}&end_date=${endDate}`:''}`; } else { alert(res && res.error ? ('သိမ်းရာတွင် အမှားရှိသည်: ' + res.error) : 'သိမ်းရာတွင် အမှားရှိသည်'); } }).catch(()=>alert('Network error')); });
+  document.getElementById('saveAll').addEventListener('click', ()=>{
+    const rows = Array.from(document.querySelectorAll('#medicineTableBody tr')).filter(r=>r.querySelector('[data-field]'));
+    if (rows.length === 0){ alert('သိမ်းရန် ဒေတာမရှိပါ'); return; }
+    const payload = rows.map(getRowData);
+    fetch('save_bulk_medicine.php',{ method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({items: payload, farm_id: currentFarmId, page_number: currentGlobalPage}) }).then(r=>r.json()).then(res=>{ if(res && res.success){ alert('ဒေတာအားလုံးသိမ်းပြီး'); location.href = `medicine.php?page=${currentPage}&farm_id=${currentFarmId}${startDate&&endDate?`&start_date=${startDate}&end_date=${endDate}`:''}`; } else { alert(res && res.error ? ('သိမ်းရာတွင် အမှားရှိသည်: ' + res.error) : 'သိမ်းရာတွင် အမှားရှိသည်'); } }).catch(()=>alert('Network error'));
+  });
   document.querySelectorAll('#medicineTableBody tr').forEach(recalcRow); recalcTotals();
 
   const searchBtn = document.getElementById('btnSearch'); const clearBtn = document.getElementById('btnClear'); const startInput = document.getElementById('startDate'); const endInput = document.getElementById('endDate');

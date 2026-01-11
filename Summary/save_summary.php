@@ -16,8 +16,6 @@ $id = $data['id'] ?? null;
 $page_number = intval($data['page_number'] ?? 1);
 $farm_id = intval($data['farm_id'] ?? 1);
 
-$chicken_type = $data['chicken_type'] ?? 'CP';
-
 $date = $data['date'] ?? date('Y-m-d');
 $age = $data['age'] ?? '';
 
@@ -40,12 +38,11 @@ try {
     if ($id) {
 
         $stmt = $pdo->prepare('UPDATE summary 
-        SET chicken_type = ?, age=?, date=?, company_in=?, mix_in=?, total_feed=?, company_left=?, mix_left=?, 
+        SET age=?, date=?, company_in=?, mix_in=?, total_feed=?, company_left=?, mix_left=?, 
             cumulative_rate=?, daily_rate=?, weight=?, dead=?, cumulative_dead=?, page_number=?, farm_id=?
         WHERE id=?');
 
         $stmt->execute([
-            $chicken_type,
             $age,
             $date,
             $company_in,
@@ -66,12 +63,11 @@ try {
     } else {
 
         $stmt = $pdo->prepare('INSERT INTO summary 
-        (chicken_type,age, date, company_in, mix_in, total_feed, company_left, mix_left, 
+        (age, date, company_in, mix_in, total_feed, company_left, mix_left, 
          cumulative_rate, daily_rate, weight, dead, cumulative_dead, page_number, farm_id)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
 
         $stmt->execute([
-            $chicken_type,
             $age,
             $date,
             $company_in,
