@@ -170,6 +170,29 @@ if (!$table_check) {
     executeQuery($create_sql);
 }
 
+$remain_table_check = fetchOne("SHOW TABLES LIKE 'feed_remain'");
+if (!$remain_table_check) {
+    $create_remain_sql = "
+    CREATE TABLE IF NOT EXISTS feed_remain (
+      id INT(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      rem_cate VARCHAR(120) DEFAULT NULL,
+      rem_name VARCHAR(120) DEFAULT NULL,
+      rem_quan DECIMAL(10,2) DEFAULT 0,
+      rem_price DECIMAL(12,2) DEFAULT 0,
+      rem_total DECIMAL(14,2) DEFAULT 0,
+      comments TEXT DEFAULT NULL,
+      has_comment TINYINT(1) NOT NULL DEFAULT 0,
+      comment_read TINYINT(1) NOT NULL DEFAULT 0,
+      comment_author_id INT(11) DEFAULT NULL,
+      comment_created_at TIMESTAMP NULL DEFAULT NULL,
+      page_number INT(11) NOT NULL DEFAULT 1,
+      farm_id INT(11) NOT NULL DEFAULT 1,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
+    executeQuery($create_remain_sql);
+}
+
 $checkCol = fetchOne("SHOW COLUMNS FROM feed_summary LIKE 'comments'");
 if (!$checkCol) { executeQuery("ALTER TABLE feed_summary ADD COLUMN comments TEXT DEFAULT NULL"); }
 $checkCol = fetchOne("SHOW COLUMNS FROM feed_summary LIKE 'has_comment'");
@@ -192,6 +215,10 @@ if ($start_date && $end_date) {
 }
 $sql .= ' ORDER BY date ASC';
 $feed_data = fetchAll($sql, $params);
+
+$remain_sql = 'SELECT * FROM feed_remain WHERE page_number = ? AND farm_id = ? ORDER BY id ASC';
+$remain_params = [$current_global_page, $current_farm_id];
+$remain_data = fetchAll($remain_sql, $remain_params);
 
 function fmt($n){
   if ($n === null || $n === '') return '0';
@@ -263,7 +290,7 @@ function fmt($n){
         <?php include('../pagination.php'); ?>
         <table id="feedTable">
           <thead>
-            <tr style="height: 100px;"><th colspan="9">အစာစာရင်းချုပ် - <?php echo htmlspecialchars($current_farm['farm_username'] ?? 'Default Farm'); ?> - ခြံ(<?php echo $current_farm['farm_no'] ?? 1; ?>) - စာမျက်နှာ <?php echo $current_page; ?></th></tr>
+            <tr style="height: 100px;"><th colspan="8">အစာစာရင်းချုပ် - <?php echo htmlspecialchars($current_farm['farm_username'] ?? 'Default Farm'); ?> - ခြံ(<?php echo $current_farm['farm_no'] ?? 1; ?>) - စာမျက်နှာ <?php echo $current_page; ?></th></tr>
             <tr style="height: 90px;">
               <th>ရက်စွဲ</th>
               <th>အစာအမျိုးအစား</th>
@@ -271,8 +298,7 @@ function fmt($n){
               <th>အရေအတွက်</th>
               <th>ဈေးနှုန်း</th>
               <th>ကုန်ကျငွေ</th>
-              <th>ပြုပြင်ရန်</th>
-              <th>ဖျက်ရန်</th>
+              <th style="width: 100px;">ဖျက်ရန်</th>
               <th>မှတ်ချက်</th>
             </tr>
           </thead>
@@ -280,19 +306,18 @@ function fmt($n){
             <?php if ($feed_data && count($feed_data) > 0): ?>
               <?php foreach ($feed_data as $row): ?>
                 <tr data-id="<?php echo $row['id']; ?>">
-                  <td class="editable" data-field="date"><?php echo $row['date'] ?: ''; ?></td>
-                  <td class="editable" data-field="feed_category"><?php echo htmlspecialchars($row['feed_category'] ?? ''); ?></td>
-                  <td class="editable" data-field="feed_name"><?php echo htmlspecialchars($row['feed_name'] ?? ''); ?></td>
-                  <td class="editable" data-field="quantity"><?php echo fmt($row['quantity']); ?></td>
-                  <td class="editable" data-field="unit_price"><?php echo fmt($row['unit_price']); ?></td>
-                  <td class="editable" data-field="total_cost"><?php echo fmt($row['total_cost']); ?></td>
-                  <td>
-                    <button class="save-btn saved">သိမ်းပြီး</button>
+                  <td style="width: 14%;" class="editable" data-field="date"><?php echo $row['date'] ?: ''; ?></td>
+                  <td style="width: 14%;" class="editable" data-field="feed_category"><?php echo htmlspecialchars($row['feed_category'] ?? ''); ?></td>
+                  <td style="width: 14%;" class="editable" data-field="feed_name"><?php echo htmlspecialchars($row['feed_name'] ?? ''); ?></td>
+                  <td style="width: 10%;" class="editable" data-field="quantity"><?php echo fmt($row['quantity']); ?></td>
+                  <td style="width: 16%;" class="editable" data-field="unit_price"><?php echo fmt($row['unit_price']); ?></td>
+                  <td style="width: 16%;" class="editable" data-field="total_cost"><?php echo fmt($row['total_cost']); ?></td>
+                  <td style="width: 5%;">
+                    <button class="btn-delete" data-id="<?php echo $row['id']; ?>">
+                      <i class="fa-solid fa-trash"></i>
+                    </button>
                   </td>
-                  <td>
-                    <button class="btn-delete" data-id="<?php echo $row['id']; ?>">ဖျက်ရန်</button>
-                  </td>
-                  <td class="comment-cell">
+                  <td style="width: 5%;" class="comment-cell">
                     <div class="comment-container">
                       <?php
                         $comment_author_name = '';
@@ -308,7 +333,7 @@ function fmt($n){
                           else { $badge_class = !empty($row['comment_read']) ? 'badge-comment-read' : 'badge-comment-unread'; }
                         }
                       ?>
-                      <button class="btn-comment" data-id="<?php echo $row['id']; ?>"
+                      <button class="btn-comment" data-id="<?php echo $row['id']; ?>" data-table="summary"
                         data-has-comment="<?php echo $has_comment_value; ?>"
                         data-comment-read="<?php echo $comment_read_value; ?>"
                         data-current-comment="<?php echo htmlspecialchars($row['comments'] ?? ''); ?>"
@@ -322,16 +347,110 @@ function fmt($n){
                 </tr>
               <?php endforeach; ?>
             <?php else: ?>
-              <tr><td colspan="9" style="text-align:center;padding:20px;">ဒေတာမရှိပါ။ row အသစ်ထပ်ယူပါ။</td></tr>
+              <tr><td colspan="8" style="text-align:center;padding:20px;">ဒေတာမရှိပါ။ row အသစ်ထပ်ယူပါ။</td></tr>
             <?php endif; ?>
           </tbody>
           <tfoot style="height: 80px;">
             <tr>
-              <th colspan="3" style="font-weight: 400;">စုစုပေါင်း</th>
+              <th colspan="3" style="font-weight: 400;">ရောက်ရှိအစာစုစုပေါင်း</th>
               <th id="sumQuantity">0</th>
               <th></th>
               <th id="sumTotal">0</th>
               <th></th>
+              <th></th>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <?php
+        $rem_total_quantity = 0;
+        $rem_total_amount = 0;
+        if ($remain_data && count($remain_data) > 0) {
+          foreach ($remain_data as $row) {
+            $rem_total_quantity += isset($row['rem_quan']) ? (float)$row['rem_quan'] : 0;
+            $rem_total_amount += isset($row['rem_total']) ? (float)$row['rem_total'] : 0;
+          }
+        }
+      ?>
+      <div class="table-container">
+        <table id="feedRemainTable">
+          <thead>
+            <!-- <tr style="height: 80px;">
+              <th colspan="8">အစာကျန်</th>
+            </tr> -->
+          </thead>
+          <tbody id="feedRemainBody">
+            <?php if ($remain_data && count($remain_data) > 0): ?>
+              <?php foreach ($remain_data as $row): ?>
+                <tr data-id="<?php echo $row['id']; ?>">
+                  <td style="width: 14%;">အစာကျန်စုစုပေါင်း</td>
+                  <td style="width: 14%;" class="editable-rem" data-field="rem_cate"><?php echo htmlspecialchars($row['rem_cate'] ?? ''); ?></td>
+                  <td style="width: 14%;" class="editable-rem" data-field="rem_name"><?php echo htmlspecialchars($row['rem_name'] ?? ''); ?></td>
+                  <td style="width: 10%;" class="editable-rem" data-field="rem_quan"><?php echo fmt($row['rem_quan'] ?? 0); ?></td>
+                  <td style="width: 16%;" class="editable-rem" data-field="rem_price"><?php echo fmt($row['rem_price'] ?? 0); ?></td>
+                  <td style="width: 16%;" class="editable-rem" data-field="rem_total"><?php echo fmt($row['rem_total'] ?? 0); ?></td>
+                  <td style="width: 5%;">
+                    <button class="btn-delete" data-id="<?php echo $row['id']; ?>">
+                      <i class="fa-solid fa-trash"></i>
+                    </button>
+                  </td>
+                  <td style="width: 5%;" class="comment-cell">
+                    <div class="comment-container">
+                      <?php
+                        $rem_comment_author_name = '';
+                        if (!empty($row['comment_author_id'])) {
+                          $rem_author_result = fetchOne('SELECT username FROM users WHERE id = ?', [$row['comment_author_id']]);
+                          $rem_comment_author_name = $rem_author_result ? $rem_author_result['username'] : '';
+                        }
+                        $rem_badge_class = '';
+                        $rem_has_comment_value = !empty($row['has_comment']) ? '1' : '0';
+                        $rem_comment_read_value = !empty($row['comment_read']) ? '1' : '0';
+                        if (!empty($row['has_comment'])) {
+                          if ($user['role'] === 'admin') { $rem_badge_class = 'badge-comment-admin'; }
+                          else { $rem_badge_class = !empty($row['comment_read']) ? 'badge-comment-read' : 'badge-comment-unread'; }
+                        }
+                      ?>
+                      <button class="btn-comment" data-id="<?php echo $row['id']; ?>"
+                        data-table="remain"
+                        data-has-comment="<?php echo $rem_has_comment_value; ?>"
+                        data-comment-read="<?php echo $rem_comment_read_value; ?>"
+                        data-current-comment="<?php echo htmlspecialchars($row['comments'] ?? ''); ?>"
+                        data-comment-author="<?php echo htmlspecialchars($rem_comment_author_name); ?>"
+                        data-comment-date="<?php echo $row['comment_created_at'] ?? ''; ?>">
+                        <i class="fa-regular fa-comment"></i>
+                        <?php if (!empty($row['has_comment'])): ?><span class="comment-badge <?php echo $rem_badge_class; ?>"></span><?php endif; ?>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              <?php endforeach; ?>
+            <?php else: ?>
+              <tr><td colspan="8" style="text-align:center;padding:20px;">အစာကျန်ဒေတာမရှိပါ</td></tr>
+            <?php endif; ?>
+          </tbody>
+          <tfoot style="height: 80px;">
+            <tr>
+              <th colspan="3" style="font-weight: 400;">
+                စုစုပေါင်းအစာစားနှုန်း
+                <button id="addRemainRow" class="btn btn-primary" style="margin-left: 12px; padding: 6px 10px;">
+                  <i class="fas fa-plus"></i>
+                </button>
+              </th>
+              <th id="sumRemainQuantity"><?php echo fmt($rem_total_quantity); ?></th>
+              <th></th>
+              <th id="sumRemainTotal"><?php echo fmt($rem_total_amount); ?></th>
+              <th></th>
+              <th></th>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <div class="table-container">
+        <table id="feedBagTotalTable">
+          <tfoot style="height: 80px;">
+            <tr>
+              <th colspan="5" class="feed-bag-label">အစာအိတ်စုစုပေါင်းကျသင့်ငွေ</th>
+              <th id="sumFeedBagCost" class="feed-bag-amount">0</th>
               <th></th>
               <th></th>
             </tr>
@@ -371,6 +490,42 @@ function recalcTotals(){
   });
   document.getElementById('sumQuantity').textContent = Math.round(sumQ);
   document.getElementById('sumTotal').textContent = Math.round(sumT);
+  recalcRemainTotals();
+}
+
+function recalcRemainRow(row){
+  const qtyCell = row.querySelector('[data-field="rem_quan"]');
+  const priceCell = row.querySelector('[data-field="rem_price"]');
+  const totalCell = row.querySelector('[data-field="rem_total"]');
+  if (!qtyCell || !priceCell || !totalCell) return;
+  const q = parseFloat(qtyCell.textContent) || 0;
+  const p = parseFloat(priceCell.textContent) || 0;
+  const t = q * p;
+  totalCell.textContent = Math.round(t);
+}
+
+function recalcRemainTotals(){
+  let sumQ = 0, sumT = 0;
+  document.querySelectorAll('#feedRemainBody tr').forEach(row=>{
+    const qtyCell = row.querySelector('[data-field="rem_quan"]');
+    const totalCell = row.querySelector('[data-field="rem_total"]');
+    if (!qtyCell || !totalCell) return;
+    const q = parseFloat(qtyCell.textContent) || 0;
+    const t = parseFloat(totalCell.textContent) || 0;
+    sumQ += q; sumT += t;
+  });
+  const mainQEl = document.getElementById('sumQuantity');
+  const mainTEl = document.getElementById('sumTotal');
+  const sumQEl = document.getElementById('sumRemainQuantity');
+  const sumTEl = document.getElementById('sumRemainTotal');
+  const bagCostEl = document.getElementById('sumFeedBagCost');
+  const mainQ = mainQEl ? parseFloat(mainQEl.textContent) || 0 : 0;
+  const mainT = mainTEl ? parseFloat(mainTEl.textContent) || 0 : 0;
+  const consumedQ = mainQ - sumQ;
+  const consumedT = mainT - sumT;
+  if (sumQEl) sumQEl.textContent = Math.round(consumedQ);
+  if (sumTEl) sumTEl.textContent = Math.round(consumedT);
+  if (bagCostEl) bagCostEl.textContent = Math.round(consumedT) + ' ကျပ်';
 }
 
 function startEditing(cell){
@@ -396,6 +551,17 @@ function finishEditing(cell){
   recalcRow(row);
   recalcTotals();
   markRowPending(row);
+  const id = row.getAttribute('data-id');
+  if (id){
+    sendMainRow(row).then(res=>{
+      if(res && res.success){
+        if(res.id) row.setAttribute('data-id', res.id);
+        markRowSaved(row);
+      } else {
+        alert('သိမ်းရာတွင် အမှားရှိသည်');
+      }
+    }).catch(()=>alert('Network error'));
+  }
 }
 
 function cancelEditing(cell){
@@ -412,9 +578,28 @@ function getRowData(row){
     if (['quantity','unit_price','total_cost'].includes(f)) v = parseFloat(v)||0;
     data[f] = v;
   });
-  data.id = row.getAttribute('data-id') || null;
+  const id = row.getAttribute('data-id') || null;
+  data.id = id;
   data.page_number = currentGlobalPage;
   data.farm_id = currentFarmId;
+  data.target = 'summary';
+  return data;
+}
+
+function getRemainRowData(row){
+  const data = {};
+  row.querySelectorAll('[data-field]').forEach(c=>{
+    const f = c.getAttribute('data-field');
+    const input = c.querySelector('input');
+    let v = input ? input.value.trim() : c.textContent.trim();
+    if (['rem_quan','rem_price','rem_total'].includes(f)) v = parseFloat(v)||0;
+    data[f] = v;
+  });
+  const id = row.getAttribute('data-id') || null;
+  data.id = id;
+  data.page_number = currentGlobalPage;
+  data.farm_id = currentFarmId;
+  data.target = 'remain';
   return data;
 }
 
@@ -434,8 +619,49 @@ function markRowSaved(row){
   btn.classList.add('saved');
 }
 
-function sendRow(row){
+function startEditingRemain(cell){
+  if (cell.querySelector('input')) return;
+  const val = cell.textContent.trim();
+  const input = `<input type="text" class="edit-input" value="${val}">`;
+  cell.innerHTML = input;
+  const el = cell.querySelector('input');
+  el.focus();
+  el.select();
+  el.addEventListener('blur', ()=>finishEditingRemain(cell));
+  el.addEventListener('keydown', (e)=>{ if(e.key==='Enter') finishEditingRemain(cell); if(e.key==='Escape') cancelEditing(cell); });
+}
+
+function finishEditingRemain(cell){
+  const el = cell.querySelector('input');
+  const val = el ? el.value : '';
+  cell.textContent = val;
+  const row = cell.closest('tr');
+  recalcRemainRow(row);
+  recalcRemainTotals();
+  sendRemainRow(row).then(res=>{
+    if(res && res.success){
+      if (res.id){
+        row.setAttribute('data-id', res.id);
+        const commentBtn = row.querySelector('.btn-comment');
+        if (commentBtn) commentBtn.setAttribute('data-id', res.id);
+      }
+    } else {
+      alert('သိမ်းရာတွင် အမှားရှိသည်');
+    }
+  }).catch(()=>alert('Network error'));
+}
+
+function sendMainRow(row){
   const payload = getRowData(row);
+  return fetch('save_feed.php',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(payload)
+  }).then(r=>r.json());
+}
+
+function sendRemainRow(row){
+  const payload = getRemainRowData(row);
   return fetch('save_feed.php',{
     method:'POST',
     headers:{'Content-Type':'application/json'},
@@ -448,11 +674,51 @@ document.addEventListener('DOMContentLoaded', ()=>{
     const cell = e.target.closest('td.editable');
     if (cell) startEditing(cell);
   });
+  const remainBody = document.getElementById('feedRemainBody');
+  if (remainBody){
+    remainBody.addEventListener('dblclick', (e)=>{
+      const cell = e.target.closest('td.editable-rem');
+      if (cell) startEditingRemain(cell);
+    });
+  }
+  function handleDeleteRow(row, type){
+    const id = row.getAttribute('data-id');
+    if (!id){
+      row.remove();
+      if (type === 'remain') recalcRemainTotals();
+      else recalcTotals();
+      return;
+    }
+    if (!confirm('ဤအချက်အလက်ကိုဖျက်မှာသေချာပါသလား?')) return;
+    fetch('delete_feed.php',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ id, target: type })
+    })
+    .then(r=>r.json())
+    .then(res=>{
+      if(res && res.success){
+        if (type === 'remain'){
+          const remRow = document.querySelector('#feedRemainBody tr[data-id="'+id+'"]') || row;
+          if (remRow) remRow.remove();
+          recalcRemainTotals();
+        } else {
+          const mainRow = document.querySelector('#feedTableBody tr[data-id="'+id+'"]') || row;
+          if (mainRow) mainRow.remove();
+          recalcTotals();
+        }
+        alert('ဖျက်ပြီးပါပြီ');
+      } else {
+        alert('ဖျက်ရာတွင် အမှားရှိသည်');
+      }
+    })
+    .catch(()=>alert('Network error'));
+  }
   document.getElementById('feedTableBody').addEventListener('click', (e)=>{
     const btn = e.target.closest('.save-btn');
     if (btn){
       const row = btn.closest('tr');
-      sendRow(row).then(res=>{
+      sendMainRow(row).then(res=>{
         if(res && res.success){
           if(res.id) row.setAttribute('data-id', res.id);
           alert('အောင်မြင်စွာသိမ်းဆည်းပြီး');
@@ -465,19 +731,50 @@ document.addEventListener('DOMContentLoaded', ()=>{
     const delBtn = e.target.closest('.btn-delete');
     if (delBtn){
       const row = delBtn.closest('tr');
-      const id = row.getAttribute('data-id');
-      if (!id){ row.remove(); recalcTotals(); return; }
-      if (!confirm('ဤအချက်အလက်ကိုဖျက်မှာသေချာပါသလား?')) return;
-      fetch('delete_feed.php',{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ id })
-      })
-      .then(r=>r.json())
-      .then(res=>{ if(res && res.success){ row.remove(); recalcTotals(); alert('ဖျက်ပြီးပါပြီ'); } else { alert('ဖျက်ရာတွင် အမှားရှိသည်'); } })
-      .catch(()=>alert('Network error'));
+      handleDeleteRow(row, 'summary');
     }
   });
+  if (remainBody){
+    remainBody.addEventListener('click', (e)=>{
+      const delBtn = e.target.closest('.btn-delete');
+      if (delBtn){
+        const row = delBtn.closest('tr');
+        handleDeleteRow(row, 'remain');
+      }
+    });
+  }
+  const addRemainBtn = document.getElementById('addRemainRow');
+  if (addRemainBtn && remainBody){
+    addRemainBtn.addEventListener('click', ()=>{
+      const noDataRow = remainBody.querySelector('tr td[colspan]');
+      if (noDataRow) noDataRow.closest('tr').remove();
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td style="width: 14%;">အစာကျန်စုစုပေါင်း</td>
+        <td style="width: 14%;" class="editable-rem" data-field="rem_cate"></td>
+        <td style="width: 14%;" class="editable-rem" data-field="rem_name"></td>
+        <td style="width: 10%;" class="editable-rem" data-field="rem_quan">0</td>
+        <td style="width: 16%;" class="editable-rem" data-field="rem_price">0</td>
+        <td style="width: 16%;" class="editable-rem" data-field="rem_total">0</td>
+        <td style="width: 5%;"><button class="btn-delete"><i class="fa-solid fa-trash"></i></button></td>
+        <td style="width: 5%;" class="comment-cell"><div class="comment-container"><button class="btn-comment" data-id="" data-table="remain"><i class="fa-regular fa-comment"></i></button></div></td>
+      `;
+      remainBody.appendChild(tr);
+      recalcRemainRow(tr);
+      recalcRemainTotals();
+      sendRemainRow(tr).then(res=>{
+        if(res && res.success){
+          if (res.id){
+            tr.setAttribute('data-id', res.id);
+            const commentBtn = tr.querySelector('.btn-comment');
+            if (commentBtn) commentBtn.setAttribute('data-id', res.id);
+          }
+        } else {
+          alert('သိမ်းရာတွင် အမှားရှိသည်');
+        }
+      }).catch(()=>alert('Network error'));
+    });
+  }
   document.getElementById('addRow').addEventListener('click', ()=>{
     const tbody = document.getElementById('feedTableBody');
     const noDataRow = tbody.querySelector('tr td[colspan]');
@@ -491,12 +788,25 @@ document.addEventListener('DOMContentLoaded', ()=>{
       <td class="editable" data-field="quantity">0</td>
       <td class="editable" data-field="unit_price">0</td>
       <td class="editable" data-field="total_cost">0</td>
-      <td><button class="save-btn pending">သိမ်းရန်</button></td>
-      <td><button class="btn-delete">ဖျက်ရန်</button></td>
-      <td class="comment-cell"><div class="comment-container"><button class="btn-comment" data-id=""><i class="fa-regular fa-comment"></i></button></div></td>
+      <td><button class="btn-delete"><i class="fa-solid fa-trash"></i></button></td>
+      <td class="comment-cell"><div class="comment-container"><button class="btn-comment" data-id="" data-table="summary"><i class="fa-regular fa-comment"></i></button></div></td>
     `;
     tbody.appendChild(tr);
+    recalcRow(tr);
     recalcTotals();
+    markRowPending(tr);
+    sendMainRow(tr).then(res=>{
+      if(res && res.success){
+        if(res.id){
+          tr.setAttribute('data-id', res.id);
+          const commentBtn = tr.querySelector('.btn-comment');
+          if (commentBtn) commentBtn.setAttribute('data-id', res.id);
+        }
+        markRowSaved(tr);
+      } else {
+        alert('သိမ်းရာတွင် အမှားရှိသည်');
+      }
+    }).catch(()=>alert('Network error'));
   });
   document.getElementById('saveAll').addEventListener('click', ()=>{
     const rows = Array.from(document.querySelectorAll('#feedTableBody tr')).filter(r=>r.querySelector('[data-field]'));
@@ -513,6 +823,8 @@ document.addEventListener('DOMContentLoaded', ()=>{
   });
   document.querySelectorAll('#feedTableBody tr').forEach(recalcRow);
   recalcTotals();
+  document.querySelectorAll('#feedRemainBody tr').forEach(recalcRemainRow);
+  recalcRemainTotals();
 
   const searchBtn = document.getElementById('btnSearch');
   const clearBtn = document.getElementById('btnClear');
@@ -620,12 +932,14 @@ document.addEventListener('DOMContentLoaded', function(){
   const btnCommentCancel = document.getElementById('btnCommentCancel');
   const closeBtn = document.querySelector('.comment-modal-close');
   let currentCommentRowId = null;
+  let currentCommentTable = 'summary';
   const currentUserRole = '<?php echo $user["role"]; ?>';
   const currentUserId = <?php echo $user["id"]; ?>;
   document.addEventListener('click', function(e){
     if (e.target.closest('.btn-comment')){
       const btn = e.target.closest('.btn-comment');
       currentCommentRowId = btn.getAttribute('data-id') || '';
+      currentCommentTable = btn.getAttribute('data-table') || 'summary';
       const hasComment = (btn.getAttribute('data-has-comment')||'0') === '1';
       const commentRead = (btn.getAttribute('data-comment-read')||'0') === '1';
       const currentComment = btn.getAttribute('data-current-comment') || '';
@@ -665,11 +979,11 @@ document.addEventListener('DOMContentLoaded', function(){
     const originalText = btnCommentSave.textContent;
     btnCommentSave.innerHTML = '<i class="fas fa-spinner fa-spin"></i> သိမ်းဆည်းနေသည်...';
     btnCommentSave.disabled = true;
-    fetch('save_comment.php',{ method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ row_id: currentCommentRowId, comment, user_id: currentUserId }) })
+    fetch('save_comment.php',{ method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ row_id: currentCommentRowId, comment, user_id: currentUserId, table: currentCommentTable }) })
     .then(r=>r.json())
     .then(result=>{
       if (result && result.success){
-        const commentBtn = document.querySelector(`.btn-comment[data-id="${currentCommentRowId}"]`);
+        const commentBtn = document.querySelector(`.btn-comment[data-id="${currentCommentRowId}"][data-table="${currentCommentTable}"]`);
         if (commentBtn){
           commentBtn.setAttribute('data-has-comment','1');
           commentBtn.setAttribute('data-comment-read','0');
@@ -689,11 +1003,11 @@ document.addEventListener('DOMContentLoaded', function(){
   });
   btnCommentMarkRead.addEventListener('click', function(){
     if (!currentCommentRowId) return;
-    fetch('mark_comment_read.php',{ method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ row_id: currentCommentRowId }) })
+    fetch('mark_comment_read.php',{ method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ row_id: currentCommentRowId, table: currentCommentTable }) })
     .then(r=>r.json())
     .then(result=>{
       if (result && result.success){
-        const commentBtn = document.querySelector(`.btn-comment[data-id="${currentCommentRowId}"]`);
+        const commentBtn = document.querySelector(`.btn-comment[data-id="${currentCommentRowId}"][data-table="${currentCommentTable}"]`);
         if (commentBtn){ commentBtn.setAttribute('data-comment-read','1'); const badge = commentBtn.querySelector('.comment-badge'); if (badge) badge.className = 'comment-badge badge-comment-read'; }
         btnCommentMarkRead.style.display = 'none';
         alert('မှတ်ချက်ဖတ်ပြီးအမှတ်အသားပြုထားပြီး');

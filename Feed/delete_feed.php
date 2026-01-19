@@ -8,8 +8,11 @@ $input = file_get_contents('php://input');
 $data = json_decode($input, true);
 if (!$data || empty($data['id'])){ echo json_encode(['success'=>false,'error'=>'Invalid ID']); exit(); }
 
+$target = $data['target'] ?? 'summary';
+$table = $target === 'remain' ? 'feed_remain' : 'feed_summary';
+
 try {
-    $stmt = $pdo->prepare('DELETE FROM feed_summary WHERE id = ?');
+    $stmt = $pdo->prepare("DELETE FROM {$table} WHERE id = ?");
     $stmt->execute([$data['id']]);
     echo json_encode(['success'=>true]);
 } catch (Exception $e) {

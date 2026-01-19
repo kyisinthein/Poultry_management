@@ -61,6 +61,28 @@
   box-shadow: 0 8px 18px rgba(239, 68, 68, 0.35);
 }
 
+.sell_container #feedTable .btn-delete,
+.sell_container #feedTable .delete-btn{
+  min-width: unset;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 10px;
+}
+.sell_container #feedRemainTable .btn-delete,
+.sell_container #feedRemainTable .delete-btn{
+  min-width: unset;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 10px;
+}
+
+.sell_container #feedTable .btn-delete i,
+.sell_container #feedTable .delete-btn i{
+  font-size: 14px;
+}
+
 .header-actions .btn{
   border:none;
   border-radius:12px;
@@ -81,12 +103,27 @@
   color:#fff;
 }
 
-/* spacing for action columns */
-#feedTable td:nth-last-child(3),
-#feedTable th:nth-last-child(3){
-  text-align:center;
+/* feed bag total row */
+#feedBagTotalTable .feed-bag-label,
+#feedBagTotalTable .feed-bag-amount{
+  color: var(--feed-green-dark);
+  font-weight: 600;
 }
+#feedBagTotalTable .feed-bag-amount{
+  text-align: right;
+  padding-right: 250px;
+}
+
+/* spacing and width for action columns */
 #feedTable td:nth-last-child(2),
-#feedTable th:nth-last-child(2){
+#feedTable th:nth-last-child(2),
+#feedRemainTable td:nth-last-child(2){
   text-align:center;
+  width: 100px;
+}
+#feedTable td:last-child,
+#feedTable th:last-child,
+#feedRemainTable td:last-child{
+  text-align:center;
+  width: 100px;
 }

@@ -14,6 +14,8 @@ $farm = $data['farm_id'] ?? 1;
 try {
     $stmt = $pdo->prepare('DELETE FROM feed_summary WHERE page_number = ? AND farm_id = ?');
     $stmt->execute([$page, $farm]);
+    $stmt2 = $pdo->prepare('DELETE FROM feed_remain WHERE page_number = ? AND farm_id = ?');
+    $stmt2->execute([$page, $farm]);
     echo json_encode(['success'=>true]);
 } catch (Exception $e) {
     echo json_encode(['success'=>false, 'error'=>$e->getMessage()]);

@@ -49,6 +49,17 @@
 }
 .btn-delete:hover{ filter: brightness(1.05); transform: translateY(-1px); box-shadow: 0 8px 18px rgba(239, 68, 68, 0.35); }
 
+.sell_container #medicineTable .btn-delete{
+  min-width: unset;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 10px;
+}
+.sell_container #medicineTable .btn-delete i{
+  font-size: 14px;
+}
+
 /* Align action columns */
 #medicineTable td:nth-last-child(3),
 #medicineTable th:nth-last-child(3){ text-align:center; }

@@ -197,7 +197,6 @@ function parseAmount($text){ $value = 0; $unit = extractUnitText($text); $value 
               <th>စုစုပေါင်း</th>
               <th>ဈေးနှုန်း</th>
               <th>ကျသင့်ငွေ</th>
-              <th>ပြုပြင်ရန်</th>
               <th>ဖျက်ရန်</th>
               <th>မှတ်ချက်</th>
             </tr>
@@ -206,16 +205,15 @@ function parseAmount($text){ $value = 0; $unit = extractUnitText($text); $value 
             <?php if ($medicine_data && count($medicine_data) > 0): ?>
               <?php foreach ($medicine_data as $row): ?>
                 <tr data-id="<?php echo $row['id']; ?>">
-                  <td class="editable" data-field="age_group"><?php echo htmlspecialchars($row['age_group'] ?? ''); ?></td>
-                  <td class="editable" data-field="medicine_name"><?php echo htmlspecialchars($row['medicine_name'] ?? ''); ?></td>
-                  <td class="editable" data-field="dose_amount"><?php echo displayAmount($row['dose_amount'], $row['dose_unit'] ?? ''); ?></td>
-                  <td class="editable" data-field="frequency"><?php echo fmt($row['frequency']); ?></td>
-                  <td class="editable" data-field="total_used"><?php echo displayAmount($row['total_used'], $row['total_used_unit'] ?? ''); ?></td>
-                  <td class="editable" data-field="unit_price"><?php echo fmt($row['unit_price']); ?></td>
-                  <td class="editable" data-field="total_cost"><?php echo fmt($row['total_cost']); ?></td>
-                  <td><button class="save-btn saved">သိမ်းပြီး</button></td>
-                  <td><button class="btn-delete" data-id="<?php echo $row['id']; ?>">ဖျက်ရန်</button></td>
-                  <td class="comment-cell">
+                  <td style="width: 10%;" class="editable" data-field="age_group"><?php echo htmlspecialchars($row['age_group'] ?? ''); ?></td>
+                  <td style="width: 15%;" class="editable" data-field="medicine_name"><?php echo htmlspecialchars($row['medicine_name'] ?? ''); ?></td>
+                  <td style="width: 10%;" class="editable" data-field="dose_amount"><?php echo displayAmount($row['dose_amount'], $row['dose_unit'] ?? ''); ?></td>
+                  <td style="width: 10%;" class="editable" data-field="frequency"><?php echo fmt($row['frequency']); ?></td>
+                  <td style="width: 15%;" class="editable" data-field="total_used"><?php echo displayAmount($row['total_used'], $row['total_used_unit'] ?? ''); ?></td>
+                  <td style="width: 15%;" class="editable" data-field="unit_price"><?php echo fmt($row['unit_price']); ?></td>
+                  <td style="width: 20%;" class="editable" data-field="total_cost"><?php echo fmt($row['total_cost']); ?></td>
+                  <td style="width: 5%;"><button class="btn-delete" data-id="<?php echo $row['id']; ?>"><i class="fa-solid fa-trash"></i></button></td>
+                  <td style="width: 5%;" class="comment-cell">
                     <div class="comment-container">
                       <?php
                         $comment_author_name = '';
@@ -305,9 +303,25 @@ function startEditing(cell){
   el.addEventListener('keydown', (e)=>{ if(e.key==='Enter') finishEditing(cell); if(e.key==='Escape') cancelEditing(cell); });
 }
 
-function markRowPending(row){ const btn = row.querySelector('.save-btn'); if (!btn) return; btn.textContent = 'သိမ်းရန်'; btn.classList.add('pending'); btn.classList.remove('saved'); }
-function markRowSaved(row){ const btn = row.querySelector('.save-btn'); if (!btn) return; btn.textContent = 'သိမ်းပြီး'; btn.classList.remove('pending'); btn.classList.add('saved'); }
-function finishEditing(cell){ const el = cell.querySelector('input'); const val = el ? el.value : ''; cell.textContent = val; const row = cell.closest('tr'); recalcRow(row); recalcTotals(); markRowPending(row); }
+function finishEditing(cell){
+  const el = cell.querySelector('input');
+  const val = el ? el.value : '';
+  cell.textContent = val;
+  const row = cell.closest('tr');
+  recalcRow(row);
+  recalcTotals();
+  sendRow(row).then(res=>{
+    if (res && res.success){
+      if (res.id){
+        row.setAttribute('data-id', res.id);
+        const commentBtn = row.querySelector('.btn-comment');
+        if (commentBtn) commentBtn.setAttribute('data-id', res.id);
+      }
+    } else {
+      alert('သိမ်းရာတွင် အမှားရှိသည်');
+    }
+  }).catch(()=>alert('Network error'));
+}
 function cancelEditing(cell){ const el = cell.querySelector('input'); cell.textContent = el ? el.defaultValue : cell.textContent; }
 
 function getRowData(row){
@@ -330,8 +344,6 @@ function sendRow(row){ const payload = getRowData(row); return fetch('save_medic
 document.addEventListener('DOMContentLoaded', ()=>{
   document.getElementById('medicineTableBody').addEventListener('dblclick', (e)=>{ const cell = e.target.closest('td.editable'); if (cell) startEditing(cell); });
   document.getElementById('medicineTableBody').addEventListener('click', (e)=>{
-    const btnSave = e.target.closest('.save-btn');
-    if (btnSave){ const row = btnSave.closest('tr'); sendRow(row).then(res=>{ if(res && res.success){ if(res.id) row.setAttribute('data-id', res.id); markRowSaved(row); alert('အောင်မြင်စွာသိမ်းဆည်းပြီး'); } else { alert('သိမ်းရာတွင် အမှားရှိသည်'); } }).catch(()=>alert('Network error')); }
     const btnDel = e.target.closest('.btn-delete');
     if (btnDel){ const row = btnDel.closest('tr'); const id = row.getAttribute('data-id'); if (!id){ row.remove(); recalcTotals(); return; } if (!confirm('ဤအချက်အလက်ကိုဖျက်မှာသေချာပါသလား?')) return; fetch('delete_medicine.php',{ method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ id }) }).then(r=>r.json()).then(res=>{ if(res && res.success){ row.remove(); recalcTotals(); alert('ဖျက်ပြီးပါပြီ'); } else { alert('ဖျက်ရာတွင် အမှားရှိသည်'); } }).catch(()=>alert('Network error')); }
   });
@@ -347,10 +359,9 @@ document.addEventListener('DOMContentLoaded', ()=>{
       <td class="editable" data-field="total_used">0</td>
       <td class="editable" data-field="unit_price">0</td>
       <td class="editable" data-field="total_cost">0</td>
-      <td><button class="save-btn pending">သိမ်းရန်</button></td>
-      <td><button class="btn-delete">ဖျက်ရန်</button></td>
+      <td><button class="btn-delete"><i class="fa-solid fa-trash"></i></button></td>
       <td class="comment-cell"><div class="comment-container"><button class="btn-comment" data-id=""><i class="fa-regular fa-comment"></i></button></div></td>
-    `; tbody.appendChild(tr); recalcTotals();
+    `; tbody.appendChild(tr); recalcTotals(); sendRow(tr).then(res=>{ if(res && res.success){ if (res.id){ tr.setAttribute('data-id', res.id); const commentBtn = tr.querySelector('.btn-comment'); if (commentBtn) commentBtn.setAttribute('data-id', res.id); } } else { alert('သိမ်းရာတွင် အမှားရှိသည်'); } }).catch(()=>alert('Network error'));
   });
   document.getElementById('saveAll').addEventListener('click', ()=>{
     const rows = Array.from(document.querySelectorAll('#medicineTableBody tr')).filter(r=>r.querySelector('[data-field]'));

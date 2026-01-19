@@ -8,9 +8,10 @@ $input = file_get_contents('php://input');
 $data = json_decode($input, true);
 if (!$data || empty($data['row_id'])){ echo json_encode(['success'=>false,'error'=>'Invalid row id']); exit(); }
 $id = intval($data['row_id']);
+$table = ($data['table'] ?? 'summary') === 'remain' ? 'feed_remain' : 'feed_summary';
 
 try{
-  $stmt = $pdo->prepare('UPDATE feed_summary SET comment_read = 1 WHERE id = ? AND has_comment = 1');
+  $stmt = $pdo->prepare("UPDATE {$table} SET comment_read = 1 WHERE id = ? AND has_comment = 1");
   $stmt->execute([$id]);
   echo json_encode(['success'=>true]);
 }catch(Exception $e){
