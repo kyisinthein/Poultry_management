@@ -204,6 +204,11 @@ if (!$checkCol) { executeQuery("ALTER TABLE feed_summary ADD COLUMN comment_auth
 $checkCol = fetchOne("SHOW COLUMNS FROM feed_summary LIKE 'comment_created_at'");
 if (!$checkCol) { executeQuery("ALTER TABLE feed_summary ADD COLUMN comment_created_at TIMESTAMP NULL DEFAULT NULL"); }
 
+$checkCol = fetchOne("SHOW COLUMNS FROM feed_remain LIKE 'total'");
+if (!$checkCol) { executeQuery("ALTER TABLE feed_remain ADD COLUMN total DECIMAL(14,2) DEFAULT 0"); }
+$checkCol = fetchOne("SHOW COLUMNS FROM feed_remain LIKE 'total_quan'");
+if (!$checkCol) { executeQuery("ALTER TABLE feed_remain ADD COLUMN total_quan DECIMAL(10,2) DEFAULT 0"); }
+
 $start_date = $_GET['start_date'] ?? null;
 $end_date = $_GET['end_date'] ?? null;
 $sql = 'SELECT * FROM feed_summary WHERE page_number = ? AND farm_id = ?';
@@ -236,37 +241,72 @@ function fmt($n){
   <link rel="stylesheet" href="../assets/css/sell.css">
   <link rel="stylesheet" href="../assets/css/feed.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <style>
+      /* Force sticky header styles to avoid caching issues */
+      .sell_container #feedTable {
+        overflow: visible !important;
+        border-radius: 15px !important;
+        border-collapse: separate; 
+        border-spacing: 0;
+      }
+      .sell_container #feedTable thead th {
+        position: sticky !important;
+        top: 75px !important; /* Adjust based on pagination height */
+        z-index: 100 !important;
+        background-color: #e0ddddff !important;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        border-radius: 0 !important; /* Reset border radius for all */
+        border-bottom: 2px solid #2563eb !important;
+      }
+      
+      /* Apply border radius only to the first and last header cells */
+      .sell_container #feedTable thead th:first-child {
+        border-top-left-radius: 15px !important;
+      }
+      
+      .sell_container #feedTable thead th:last-child {
+        border-top-right-radius: 15px !important;
+      }
+      
+      /* Apply border radius to bottom corners */
+      .sell_container #feedTable tfoot tr:last-child th:first-child {
+        border-bottom-left-radius: 15px !important;
+      }
+      .sell_container #feedTable tfoot tr:last-child th:last-child {
+        border-bottom-right-radius: 15px !important;
+      }
+       
+       /* Apply border radius to footer corners */
+       .sell_container #feedTable tfoot tr:last-child th:first-child {
+         border-bottom-left-radius: 15px !important;
+       }
+       .sell_container #feedTable tfoot tr:last-child th:last-child {
+         border-bottom-right-radius: 15px !important;
+       }
+
+      /* Add spacing between tables */
+      #feedRemainTable {
+        margin-top: 50px;
+      }
+      
+      #feedBagTotalTable {
+        margin-top: 50px;
+      }
+      
+      /* CRITICAL FIX: Allow main-content to be visible so sticky header sees viewport */
+      .sell_container .main-content {
+        overflow: visible !important;
+      }
+    </style>
 </head>
 <body>
   <div class="sell_container">
     <?php include('../sidebar.php'); ?>
     <div class="main-content">
-      <div class="content-header">
-        <h1>အစာစာရင်းချုပ် - စာမျက်နှာ <?php echo $current_page; ?></h1>
-        <div class="header-actions">
-          <button class="btn btn-primary" id="addRow"><i class="fas fa-plus"></i> rowအသစ်ထပ်ယူရန်</button>
-          <button class="btn btn-secondary" id="saveAll"><i class="fas fa-save"></i> Save-all</button>
-          <form method="POST" style="display:inline;">
-            <input type="hidden" name="farm_id" value="<?php echo $current_farm_id; ?>">
-            <button type="submit" name="add_new_table" class="btn btn-primary"><i class="fas fa-plus"></i> ဇယားအသစ်ထပ်ယူရန်</button>
-          </form>
-          <?php if ($current_page > 1): ?>
-          <form method="POST" style="display:inline;" onsubmit="return confirmDeletePage();">
-            <input type="hidden" name="page" value="<?php echo $current_page; ?>">
-            <input type="hidden" name="farm_id" value="<?php echo $current_farm_id; ?>">
-            <input type="hidden" name="global_page" value="<?php echo $current_global_page; ?>">
-            <button type="submit" name="delete_current_page" class="btn btn-delete-page"><i class="fas fa-trash"></i> ဒီစာမျက်နှာကိုဖျက်ရန် (စာမျက်နှာ <?php echo $current_page; ?>)</button>
-          </form>
-          <?php endif; ?>
-          <button class="btn btn-secondary" id="downloadExcel"><i class="fas fa-file-excel"></i> Excel Download</button>
-          <button class="btn btn-danger" id="deleteAllData"><i class="fas fa-trash"></i> Delete-all (ဒေတာအားလုံး)</button>
-        </div>
-      </div>
       <div class="search-section">
         <div class="search-container">
             <div class="user-info-bar">
-              <span>လက်ရှိအသုံးပြုသူ: <strong><?php echo htmlspecialchars($user['username']); ?></strong></span><br>
-              <span>အဆင့်: <strong><?php echo htmlspecialchars($user['role']); ?></strong></span>
+              <h1 style="font-size: 20px; margin: 0; color: var(--text-color);">အစာစာရင်းချုပ် - <?php echo htmlspecialchars($current_farm['farm_username'] ?? 'Default Farm'); ?> - ခြံ(<?php echo $current_farm['farm_no'] ?? 1; ?>) - စာမျက်နှာ <?php echo $current_page; ?></h1>
             </div>
             <div class="search-group">
               <label for="startDate">စတင်ရက်စွဲ</label>
@@ -286,11 +326,34 @@ function fmt($n){
             </button>
         </div>
       </div>
-      <div class="table-container">
-        <?php include('../pagination.php'); ?>
-        <table id="feedTable">
+      <div class="table-container" style="max-height: calc(100vh - 170px) !important;">
+        <?php 
+        ob_start();
+        ?>
+        <button class="btn btn-primary" id="addRow"><i class="fas fa-plus"></i> row အသစ်</button>
+        <!-- <button class="btn btn-secondary" id="saveAll"><i class="fas fa-save"></i> Save-all</button> -->
+        <form method="POST" style="display:inline;">
+          <input type="hidden" name="farm_id" value="<?php echo $current_farm_id; ?>">
+          <button type="submit" name="add_new_table" class="btn btn-primary"><i class="fas fa-plus"></i> ဇယားအသစ်</button>
+        </form>
+        <?php if ($current_page > 1): ?>
+        <form method="POST" style="display:inline;" onsubmit="return confirmDeletePage();">
+          <input type="hidden" name="page" value="<?php echo $current_page; ?>">
+          <input type="hidden" name="farm_id" value="<?php echo $current_farm_id; ?>">
+          <input type="hidden" name="global_page" value="<?php echo $current_global_page; ?>">
+          <button type="submit" name="delete_current_page" class="btn btn-delete-page"><i class="fas fa-trash"></i> ဒီစာမျက်နှာကိုဖျက်ရန် (စာမျက်နှာ <?php echo $current_page; ?>)</button>
+        </form>
+        <?php endif; ?>
+        <button type="button" class="btn btn-secondary" id="downloadExcel" onclick="downloadFeedExcel()"><i class="fas fa-file-excel"></i> Download</button>
+        <button class="btn btn-danger" id="deleteAllData"><i class="fas fa-trash"></i> Delete-all </button>
+        <?php
+        $action_buttons_html = ob_get_clean();
+        $show_pagination_buttons = true;
+        include('../pagination.php'); 
+        ?>
+        <table id="feedTable" style="overflow: visible !important;">
           <thead>
-            <tr style="height: 100px;"><th colspan="8">အစာစာရင်းချုပ် - <?php echo htmlspecialchars($current_farm['farm_username'] ?? 'Default Farm'); ?> - ခြံ(<?php echo $current_farm['farm_no'] ?? 1; ?>) - စာမျက်နှာ <?php echo $current_page; ?></th></tr>
+            <!-- <tr style="height: 100px;"><th colspan="8">အစာစာရင်းချုပ် - <?php echo htmlspecialchars($current_farm['farm_username'] ?? 'Default Farm'); ?> - ခြံ(<?php echo $current_farm['farm_no'] ?? 1; ?>) - စာမျက်နှာ <?php echo $current_page; ?></th></tr> -->
             <tr style="height: 90px;">
               <th>ရက်စွဲ</th>
               <th>အစာအမျိုးအစား</th>
@@ -361,7 +424,6 @@ function fmt($n){
             </tr>
           </tfoot>
         </table>
-      </div>
       <?php
         $rem_total_quantity = 0;
         $rem_total_amount = 0;
@@ -372,7 +434,6 @@ function fmt($n){
           }
         }
       ?>
-      <div class="table-container">
         <table id="feedRemainTable">
           <thead>
             <!-- <tr style="height: 80px;">
@@ -444,8 +505,6 @@ function fmt($n){
             </tr>
           </tfoot>
         </table>
-      </div>
-      <div class="table-container">
         <table id="feedBagTotalTable">
           <tfoot style="height: 80px;">
             <tr>
@@ -466,6 +525,13 @@ const currentPage = <?php echo $current_page; ?>;
 const currentGlobalPage = <?php echo $current_global_page; ?>;
 let startDate = <?php echo json_encode($start_date ?? null); ?>;
 let endDate = <?php echo json_encode($end_date ?? null); ?>;
+
+window.downloadFeedExcel = function() {
+  const s = document.getElementById('startDate').value;
+  const e = document.getElementById('endDate').value;
+  const query = s && e ? `&start_date=${encodeURIComponent(s)}&end_date=${encodeURIComponent(e)}` : '';
+  window.location.href = `download_excel_feed.php?page=${currentPage}&farm_id=${currentFarmId}${query}`;
+};
 
 function recalcRow(row){
   const qtyCell = row.querySelector('[data-field="quantity"]');
@@ -526,6 +592,25 @@ function recalcRemainTotals(){
   if (sumQEl) sumQEl.textContent = Math.round(consumedQ);
   if (sumTEl) sumTEl.textContent = Math.round(consumedT);
   if (bagCostEl) bagCostEl.textContent = Math.round(consumedT) + ' ကျပ်';
+  saveConsumedTotal(consumedT, consumedQ);
+}
+
+let saveConsumedTimer = null;
+function saveConsumedTotal(cost, quantity){
+  if (saveConsumedTimer) clearTimeout(saveConsumedTimer);
+  saveConsumedTimer = setTimeout(() => {
+    fetch('save_feed.php', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        target: 'update_consumed_total',
+        total: cost,
+        total_quan: quantity,
+        page_number: currentGlobalPage,
+        farm_id: currentFarmId
+      })
+    }).catch(e => console.error(e));
+  }, 1000);
 }
 
 function startEditing(cell){
@@ -830,23 +915,19 @@ document.addEventListener('DOMContentLoaded', ()=>{
   const clearBtn = document.getElementById('btnClear');
   const startInput = document.getElementById('startDate');
   const endInput = document.getElementById('endDate');
-  searchBtn.addEventListener('click', ()=>{
-    const s = startInput.value; const e = endInput.value;
-    if (s && e){ window.location.href = `feed.php?page=${currentPage}&farm_id=${currentFarmId}&start_date=${s}&end_date=${e}`; }
-    else { alert('ကျေးဇူးပြု၍ ရက်စွဲနှစ်ခုလုံးထည့်ပါ'); }
-  });
-  clearBtn.addEventListener('click', ()=>{
-    startInput.value = ''; endInput.value = '';
-    window.location.href = `feed.php?page=${currentPage}&farm_id=${currentFarmId}`;
-  });
 
-  const downloadExcelBtn = document.getElementById('downloadExcel');
-  if (downloadExcelBtn) {
-    downloadExcelBtn.addEventListener('click', ()=>{
-      const s = startInput.value;
-      const e = endInput.value;
-      const query = s && e ? `&start_date=${encodeURIComponent(s)}&end_date=${encodeURIComponent(e)}` : '';
-      window.location.href = `download_excel_feed.php?page=${currentPage}&farm_id=${currentFarmId}${query}`;
+  if (searchBtn) {
+    searchBtn.addEventListener('click', ()=>{
+      const s = startInput.value; const e = endInput.value;
+      if (s && e){ window.location.href = `feed.php?page=${currentPage}&farm_id=${currentFarmId}&start_date=${s}&end_date=${e}`; }
+      else { alert('ကျေးဇူးပြု၍ ရက်စွဲနှစ်ခုလုံးထည့်ပါ'); }
+    });
+  }
+
+  if (clearBtn) {
+    clearBtn.addEventListener('click', ()=>{
+      startInput.value = ''; endInput.value = '';
+      window.location.href = `feed.php?page=${currentPage}&farm_id=${currentFarmId}`;
     });
   }
 

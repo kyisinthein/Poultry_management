@@ -236,10 +236,10 @@ $current_data = $food_data;
             </button>
           </form>
           
-          <button class="btn btn-secondary" id="saveAllData">
+          <!-- <button class="btn btn-secondary" id="saveAllData">
             <i class="fas fa-save"></i>
             Save-all (စာမျက်နှာ <?php echo $current_page; ?>)
-          </button>
+          </button> -->
           <button class="btn btn-danger" id="deleteAllData">
             <i class="fas fa-trash"></i>
             Delete-all (စာမျက်နှာ <?php echo $current_page; ?>)

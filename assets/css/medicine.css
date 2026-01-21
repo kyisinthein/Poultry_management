@@ -50,10 +50,10 @@
 .btn-delete:hover{ filter: brightness(1.05); transform: translateY(-1px); box-shadow: 0 8px 18px rgba(239, 68, 68, 0.35); }
 
 .sell_container #medicineTable .btn-delete{
-  min-width: unset;
-  width: 36px;
-  height: 36px;
-  padding: 0;
+  min-width: unset !important;
+  width: 36px !important;
+  height: 36px !important;
+  padding: 0 !important;
   border-radius: 10px;
 }
 .sell_container #medicineTable .btn-delete i{
@@ -68,3 +68,20 @@
 
 .pagination-wrap .quick-actions{ display:flex; align-items:center; gap:8px; }
 .pagination-wrap .quick-actions .btn{ height:40px; border-radius:8px; }
+
+/* Sticky Header Fixes */
+.sell_container #medicineTable {
+  overflow: visible !important;
+  border-radius: 0 !important;
+  border-collapse: separate; 
+  border-spacing: 0;
+}
+
+.sell_container #medicineTable thead th {
+  position: sticky !important;
+  top: 85px !important; /* Increased to clear pagination (approx 75px height) */
+  z-index: 90 !important;
+  background-color: #fff !important;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  border-bottom: 2px solid #e5e7eb !important;
+}

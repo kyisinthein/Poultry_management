@@ -29,6 +29,34 @@ ensurePaginationExists($page, $farm);
 
 $id = !empty($data['id']) ? intval($data['id']) : null;
 
+if ($target === 'update_consumed_total'){
+    $total = isset($data['total']) ? floatval($data['total']) : null;
+    $total_quan = isset($data['total_quan']) ? floatval($data['total_quan']) : null;
+
+    $updates = [];
+    $params = [];
+
+    if ($total !== null) {
+        $updates[] = "total = ?";
+        $params[] = $total;
+    }
+    if ($total_quan !== null) {
+        $updates[] = "total_quan = ?";
+        $params[] = $total_quan;
+    }
+
+    if (!empty($updates)) {
+        $sql = "UPDATE feed_remain SET " . implode(", ", $updates) . " WHERE page_number = ? AND farm_id = ?";
+        $params[] = $page;
+        $params[] = $farm;
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+    }
+    
+    echo json_encode(['success'=>true]);
+    exit();
+}
+
 if ($target === 'remain'){
     $rem_cate = $data['rem_cate'] ?? null;
     $rem_name = $data['rem_name'] ?? null;

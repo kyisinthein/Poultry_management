@@ -417,7 +417,7 @@ table {
   border-radius: 15px;
   overflow: hidden;
   box-shadow: 0 4px 12px rgba(0,0,0,0.06);
-  min-width: 1200px;
+  min-width: 100%;
 }
 
 /* Header Rows */

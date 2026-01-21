@@ -88,6 +88,12 @@ window.currentDisplayPage = <?php echo $current_page; ?>;
         <span>စာမျက်နှာ <?php echo $current_page; ?> / <?php echo $total_pages; ?></span>
     </div>
     
+    <?php if (isset($action_buttons_html)): ?>
+    <div class="pagination-actions">
+        <?php echo $action_buttons_html; ?>
+    </div>
+    <?php endif; ?>
+    
     <div class="pagination-wrap">
       <div class="pagination">
         <!-- First Page -->
@@ -195,5 +201,75 @@ window.currentDisplayPage = <?php echo $current_page; ?>;
 .page-ellipsis {
     padding: 8px 8px;
     color: #6c757d;
+}
+
+.pagination-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.pagination-actions .btn {
+    padding: 8px 16px;
+    font-size: 13px;
+    border-radius: 20px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    cursor: pointer;
+    text-decoration: none;
+    color: white;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.pagination-actions .btn-primary { 
+    background: linear-gradient(135deg, #2563eb, #1d4ed8); 
+}
+.pagination-actions .btn-secondary { 
+    background: linear-gradient(135deg, #64748b, #475569); 
+}
+.pagination-actions .btn-danger { 
+    background: linear-gradient(135deg, #ef4444, #dc2626); 
+}
+.pagination-actions .btn-delete-page { 
+    background: linear-gradient(135deg, #f59e0b, #d97706); 
+    color: white;
+}
+
+.pagination-actions .btn:hover { 
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px rgba(0,0,0,0.15);
+    filter: brightness(1.05);
+}
+
+.pagination-actions .btn:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+
+@media (max-width: 768px) {
+    .pagination-container {
+        flex-direction: column;
+        gap: 10px;
+        height: auto;
+    }
+    
+    .pagination-actions {
+        order: 2;
+        width: 100%;
+    }
+    
+    .pagination-wrap {
+        order: 3;
+    }
+    
+    .pagination-info {
+        order: 1;
+    }
 }
 </style>

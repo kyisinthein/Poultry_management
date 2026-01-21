@@ -140,37 +140,55 @@ function parseAmount($text){ $value = 0; $unit = extractUnitText($text); $value 
   <link rel="stylesheet" href="../assets/css/sell.css">
   <link rel="stylesheet" href="../assets/css/medicine.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <style>
+      /* Force sticky header styles to avoid caching issues */
+      .sell_container #medicineTable {
+        overflow: visible !important;
+        border-radius: 15px !important;
+        border-collapse: separate; 
+        border-spacing: 0;
+      }
+      .sell_container #medicineTable thead th {
+        position: sticky !important;
+        top: 75px !important; /* Adjust based on pagination height */
+        z-index: 100 !important;
+        background-color: #e0ddddff !important;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        border-radius: 0 !important; /* Reset border radius for all */
+        border-bottom: 2px solid #2563eb !important;
+      }
+      
+      /* Apply border radius only to the first and last header cells */
+      .sell_container #medicineTable thead th:first-child {
+        border-top-left-radius: 15px !important;
+      }
+      
+      .sell_container #medicineTable thead th:last-child {
+        border-top-right-radius: 15px !important;
+      }
+      
+      /* Apply border radius to bottom corners */
+      .sell_container #medicineTable tfoot tr:last-child th:first-child {
+        border-bottom-left-radius: 15px !important;
+      }
+      .sell_container #medicineTable tfoot tr:last-child th:last-child {
+        border-bottom-right-radius: 15px !important;
+      }
+      
+      /* CRITICAL FIX: Allow main-content to be visible so sticky header sees viewport */
+      .sell_container .main-content {
+        overflow: visible !important;
+      }
+    </style>
 </head>
 <body>
   <div class="sell_container">
     <?php include('../sidebar.php'); ?>
     <div class="main-content">
-      <div class="content-header">
-        <h1>ဆေးစာရင်းချုပ် - စာမျက်နှာ <?php echo $current_page; ?></h1>
-        <div class="header-actions">
-          <button class="btn btn-primary" id="addRow"><i class="fas fa-plus"></i> rowအသစ်ထပ်ယူရန်</button>
-          <button class="btn btn-secondary" id="saveAll"><i class="fas fa-save"></i> Save-all</button>
-          <form method="POST" style="display:inline;">
-            <input type="hidden" name="farm_id" value="<?php echo $current_farm_id; ?>">
-            <button type="submit" name="add_new_table" class="btn btn-primary"><i class="fas fa-plus"></i> ဇယားအသစ်ထပ်ယူရန်</button>
-          </form>
-          <?php if ($current_page > 1): ?>
-          <form method="POST" style="display:inline;" onsubmit="return confirmDeletePage();">
-            <input type="hidden" name="page" value="<?php echo $current_page; ?>">
-            <input type="hidden" name="farm_id" value="<?php echo $current_farm_id; ?>">
-            <input type="hidden" name="global_page" value="<?php echo $current_global_page; ?>">
-            <button type="submit" name="delete_current_page" class="btn btn-delete-page"><i class="fas fa-trash"></i> ဒီစာမျက်နှာကိုဖျက်ရန် (စာမျက်နှာ <?php echo $current_page; ?>)</button>
-          </form>
-          <?php endif; ?>
-          <button class="btn btn-secondary" id="downloadExcel"><i class="fas fa-file-excel"></i> Excel Download</button>
-          <button class="btn btn-danger" id="deleteAllData"><i class="fas fa-trash"></i> Delete-all (ဒေတာအားလုံး)</button>
-        </div>
-      </div>
       <div class="search-section">
         <div class="search-container">
             <div class="user-info-bar">
-              <span>လက်ရှိအသုံးပြုသူ: <strong><?php echo htmlspecialchars($user['username']); ?></strong></span><br>
-              <span>အဆင့်: <strong><?php echo htmlspecialchars($user['role']); ?></strong></span>
+              <h1 style="font-size: 20px; margin: 0; color: var(--text-color);">ဆေးစာရင်းချုပ် - <?php echo htmlspecialchars($current_farm['farm_username'] ?? 'Default Farm'); ?> - ခြံ(<?php echo $current_farm['farm_no'] ?? 1; ?>) - စာမျက်နှာ <?php echo $current_page; ?></h1>
             </div>
             <div class="search-group">
               <label for="startDate">စတင်ရက်စွဲ</label>
@@ -184,12 +202,35 @@ function parseAmount($text){ $value = 0; $unit = extractUnitText($text); $value 
             <button class="btn btn-clear" id="btnClear"><i class="fas fa-redo"></i> ရှင်းလင်းရန်</button>
         </div>
       </div>
-      <div class="table-container">
-        <?php include('../pagination.php'); ?>
-        <table id="medicineTable">
+      <div class="table-container" style="max-height: calc(100vh - 170px) !important;">
+        <?php 
+          ob_start();
+          ?>
+          <button class="btn btn-primary" id="addRow"><i class="fas fa-plus"></i> row အသစ်</button>
+          <!-- <button class="btn btn-secondary" id="saveAll"><i class="fas fa-save"></i> Save-all</button> -->
+          <form method="POST" style="display:inline;">
+            <input type="hidden" name="farm_id" value="<?php echo $current_farm_id; ?>">
+            <button type="submit" name="add_new_table" class="btn btn-primary"><i class="fas fa-plus"></i> ဇယားအသစ်</button>
+          </form>
+          <?php if ($current_page > 1): ?>
+          <form method="POST" style="display:inline;" onsubmit="return confirmDeletePage();">
+            <input type="hidden" name="page" value="<?php echo $current_page; ?>">
+            <input type="hidden" name="farm_id" value="<?php echo $current_farm_id; ?>">
+            <input type="hidden" name="global_page" value="<?php echo $current_global_page; ?>">
+            <button type="submit" name="delete_current_page" class="btn btn-delete-page"><i class="fas fa-trash"></i> ဒီစာမျက်နှာကိုဖျက်ရန် (စာမျက်နှာ <?php echo $current_page; ?>)</button>
+          </form>
+          <?php endif; ?>
+          <button class="btn btn-secondary" id="downloadExcel"><i class="fas fa-file-excel"></i> Download</button>
+          <button class="btn btn-danger" id="deleteAllData"><i class="fas fa-trash"></i> Delete-all </button>
+          <?php
+          $action_buttons_html = ob_get_clean();
+          $show_pagination_buttons = true;
+          include('../pagination.php'); 
+          ?>
+        <table id="medicineTable" style="overflow: visible !important;">
           <thead>
-            <tr style="height: 100px;"><th colspan="10">ဆေးစာရင်းချုပ် - <?php echo htmlspecialchars($current_farm['farm_username'] ?? 'Default Farm'); ?> - ခြံ(<?php echo $current_farm['farm_no'] ?? 1; ?>) - စာမျက်နှာ <?php echo $current_page; ?></th></tr>
-            <tr style="height: 90px;">
+            <!-- <tr style="height: 100px;"><th colspan="10">ဆေးစာရင်းချုပ် - <?php echo htmlspecialchars($current_farm['farm_username'] ?? 'Default Farm'); ?> - ခြံ(<?php echo $current_farm['farm_no'] ?? 1; ?>) - စာမျက်နှာ <?php echo $current_page; ?></th></tr> -->
+             <tr style="height: 90px;">
               <th>ရက်သား</th>
               <th>ဆေးအမျိုးအစား</th>
               <th>အရေအတွက်</th>
@@ -197,7 +238,7 @@ function parseAmount($text){ $value = 0; $unit = extractUnitText($text); $value 
               <th>စုစုပေါင်း</th>
               <th>ဈေးနှုန်း</th>
               <th>ကျသင့်ငွေ</th>
-              <th>ဖျက်ရန်</th>
+              <th style="width: 100px;">ဖျက်ရန်</th>
               <th>မှတ်ချက်</th>
             </tr>
           </thead>
@@ -262,6 +303,13 @@ const currentPage = <?php echo $current_page; ?>;
 const currentGlobalPage = <?php echo $current_global_page; ?>;
 let startDate = <?php echo json_encode($start_date ?? null); ?>;
 let endDate = <?php echo json_encode($end_date ?? null); ?>;
+
+window.downloadMedicineExcel = function() {
+  const s = document.getElementById('startDate').value;
+  const e = document.getElementById('endDate').value;
+  const query = s && e ? `&start_date=${encodeURIComponent(s)}&end_date=${encodeURIComponent(e)}` : '';
+  window.location.href = `download_excel_medicine.php?page=${currentPage}&farm_id=${currentFarmId}${query}`;
+};
 
 function recalcRow(row){
   const doseCell = row.querySelector('[data-field="dose_amount"]');
@@ -378,13 +426,6 @@ document.addEventListener('DOMContentLoaded', ()=>{
   const pageLinks = document.querySelectorAll('.page-btn'); pageLinks.forEach(link=>{ if (link.href){ const url = new URL(link.href); url.searchParams.set('farm_id', currentFarmId); if (startDate && endDate){ url.searchParams.set('start_date', startDate); url.searchParams.set('end_date', endDate);} link.href = url.toString(); } });
 
   const deleteAllBtn = document.getElementById('deleteAllData'); deleteAllBtn.addEventListener('click', ()=>{ if (!confirm('ဤစာမျက်နှာရှိ ဒေတာအားလုံးကိုဖျက်မှာသေချာပါသလား?')) return; fetch('delete_all_medicine.php',{ method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ page_number: currentPage, farm_id: currentFarmId }) }).then(r=>r.json()).then(res=>{ if(res && res.success){ alert('ဒေတာအားလုံးဖျက်ပြီးပါပြီ'); location.href = `medicine.php?page=${currentPage}&farm_id=${currentFarmId}`; } else { alert('ဖျက်ရာတွင် အမှားရှိသည်'); } }).catch(()=>alert('Network error')); });
-
-  const downloadExcelBtn = document.getElementById('downloadExcel');
-  if (downloadExcelBtn) {
-    downloadExcelBtn.addEventListener('click', () => {
-      window.location.href = `download_excel_medicine.php?page=${currentPage}&farm_id=${currentFarmId}${startDate && endDate ? `&start_date=${startDate}&end_date=${endDate}` : ''}`;
-    });
-  }
 
   const pagWrap = document.querySelector('.pagination-wrap');
   if (pagWrap){
